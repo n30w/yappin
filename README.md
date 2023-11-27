@@ -10,3 +10,11 @@ ICS Fall 2023 Final. Name is based on "yapping", English word for talking annoyi
 - Protobuf to send messages
 - Search chat feature
 - Send pictures and videos
+
+## Required Dependencies
+
+- Protobuf
+
+## Notes
+
+- Client.py serves as the entry point for the client program. Server.py serves as the entry point for the server program.
