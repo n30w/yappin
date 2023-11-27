@@ -18,3 +18,4 @@ ICS Fall 2023 Final. Name is based on "yapping", English word for talking annoyi
 ## Notes
 
 - Client.py serves as the entry point for the client program. Server.py serves as the entry point for the server program.
+- Please use type safety!
