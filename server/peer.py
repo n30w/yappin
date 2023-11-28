@@ -1,15 +1,47 @@
-from server.net import Config
-
-# Defines peers in the server, aka the clients that connect to the server.
+from server.net import *
 
 
-# Key represents the Public Key that each peer posses.
 class Key:
+    """
+    Key represents the private or public that each peer posses. The "key" itself is just a long string of numbers and letters.
+
+    ---
+
+    ### Methods
+        get() -- returns the key
+        set(value: str) -- sets the key
+    """
+
+    def __init__(self, value: str = "") -> None:
+        self.__value: str = value
+
+    def get(self) -> str:
+        return self.__value
+
+    def set(self, value: str):
+        self.__value = value
+
+
+class Message:
+    """
+    Message wraps the Protobuf objects created by the Protobuf compiler.
+    """
+
     def __init__(self) -> None:
         pass
+
+    def create(self) -> bool:
+        """
+        create makes a message and updates the state of the peer object accordingly.
+        """
+        return True
 
 
 class Peer:
     def __init__(self, config: Config, key: Key) -> None:
         self.config: Config = config
-        self.key: Key = key
+        self.__key: Key = key
+        self.__socket: Socket = Socket()
+
+    def get_key(self) -> str:
+        return self.__key.get()

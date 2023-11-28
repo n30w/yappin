@@ -1,10 +1,12 @@
-from server.peer import Peer
 from server.net import Config
+from server.peer import Peer
+from shared.types import T
 
 
 class Server:
     def __init__(self, config: Config) -> None:
-        self.config: Config = config
+        self.__config: Config = config
+        self.__router: Router = Router()
 
     # New sockets from peers must be in non-blocking mode
     # socket.setblocking(0)
@@ -18,10 +20,28 @@ class Server:
         pass
 
 
-# Networker establishes connections with peers and maintains connections.
-class Networker:
+class Router:
+    """
+    Routes data between internal server components. Does NOT transmit anything via network connections, that is what net module is for. This is an internal server class.
+    """
+
     def __init__(self) -> None:
-        pass
+        self.__selection: T = None
+
+    def select(self, target: T) -> None:
+        """
+        Selects a target, i.e. the thing or the "what" that will be routed.
+        """
+
+        self.__selection = target
+
+    def route_to(self, dest: T) -> None:
+        """
+        Routes an object to an internal destination. Returns a bool of whether the routing was possible or not.
+        """
+
+        dest.consume(self.__selection)
+        self.__selection = None
 
 
 # Servicer does all the high-level operations we want the server to do, for example kicking someone out. Basically business logic.
@@ -30,33 +50,7 @@ class Servicer:
         pass
 
 
-# Messenger routes messages between peers.
-class Messenger:
-    def __init__(self) -> None:
-        pass
-
-
 # Bookkeeper makes sure all data is logged and stored, and makes sure users are logged.
 class Bookkeeper:
     def __init__(self) -> None:
         pass
-
-
-# A "Table" is where peers sit down and chat, like the nook of a cafe.
-class Table:
-    def __init__(self) -> None:
-        # Seats contains the people seated at the table, the peers.
-        self.seats: list[Peer] = []
-        self.created_time: str = ""  # IMPLEMENT TIME PACKAGE
-
-    # get_information returns information about who is at the table and things like that.
-    def get_information(self) -> str:
-        pass
-
-    # seat "seats" guests at the table. Only two per table. Returns a bool that represents if seating was successful. Keep in mind here, seat is both a noun and a transitive verb in English. The method name here is the verb form.
-    def seat(self, peer: Peer) -> bool:
-        if len(self.seats) == 2:
-            return False
-        else:
-            self.seats.append(peer)
-            return True

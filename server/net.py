@@ -1,11 +1,16 @@
+from shared.types import Address
+
 # Network things
 
 
-# Config is a parent class that defines configurations for sockets and servers.
 class Config:
+    """
+    Config is a parent class that defines configurations for sockets, servers, and anything network related.
+    """
+
     def __init__(self) -> None:
-        self.IPV4_ADDR: str = ""
-        self.LISTEN_PORT: int = 0
+        self.HOST_ADDR: Address
+        self.CLIENT_ADDR: Address
 
 
 class Socket:
