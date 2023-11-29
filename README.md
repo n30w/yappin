@@ -17,6 +17,9 @@ Python ```3.12.0``` required for new ```type``` usage. There is no backwards com
 
 - Extensibility
 - Maintainability
+- Stateless
+
+The goals for this project is to ensure that this code is as extensible and as maintainable as possible. That means in the future, someone can pick up this code base and continue to work on it easily. "Stateless" just means that we are going to try and avoid maintaining and changing object state as much as possible, to ensure easy code debugging and headache avoidance. It also makes the code easier to read. As far as I know, chat programs *need* stative components, so this is just to limit them as much as possible.
 
 ## Required Dependencies
 
