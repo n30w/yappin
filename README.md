@@ -13,6 +13,11 @@ Python ```3.12.0``` required for new ```type``` usage. There is no backwards com
 - Search chat feature
 - Send pictures and videos
 
+## Goals
+
+- Extensibility
+- Maintainability
+
 ## Required Dependencies
 
 - Protobuf
