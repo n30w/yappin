@@ -17,18 +17,25 @@ class Table:
         @created_time: str -- the time the table was instantiated.
         @key_ring: list[Key] -- a list of two keys that holds the two public keys of the peers.
 
-    ### Args
     """
 
     def __init__(self) -> None:
         self.seats: list[Peer] = list()
-        self.table_top: list[Message] = list()
+
+        # Straightforward implementation of table_top.
+        # self.table_top: list[Message] = list()
+
+        # Alternative implementation of table_top.
+        self.table_top: dict[Peer, dict[int, Message]] = {}
+
         self.created_time: str = ""  # IMPLEMENT TIME PACKAGE
         self.key_ring: list[Key] = list()
 
-    # get_information returns information about who is at the table and things like that.
-    def get_information(self) -> str:
-        pass
+    def get_seated_info(self) -> list[Peer]:
+        """
+        Returns the peers sitting at the table.
+        """
+        return self.seats
 
     def seat(self, peer: Peer) -> bool:
         """
@@ -40,3 +47,11 @@ class Table:
         else:
             self.seats.append(peer)
             return True
+
+    def update_table_top(self, peer: Peer, message: Message) -> Message:
+        """
+        Adds a message to the table_top. Returns the message that was tabulated.
+        """
+        idx = 0  # CHANGE THIS TO ACTUAL INDEX
+        self.table_top[peer][0] = message
+        return message

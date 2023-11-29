@@ -1,4 +1,5 @@
 from server.net import *
+from shared.types import *
 
 
 class Key:
@@ -28,7 +29,7 @@ class Message:
     """
 
     def __init__(self) -> None:
-        pass
+        self.body: str = ""
 
     def create(self) -> bool:
         """
@@ -37,11 +38,21 @@ class Message:
         return True
 
 
+class Action:
+    pass
+
+
 class Peer:
     def __init__(self, config: Config, key: Key) -> None:
         self.config: Config = config
         self.__key: Key = key
-        self.__socket: Socket = Socket()
+        self.__socket: Socket = Socket(self.config)
 
     def get_key(self) -> str:
         return self.__key.get()
+
+    def consume(self, obj: Message | Action) -> None:
+        """
+        Consumes either a Message or an Action and does something with it.
+        """
+        pass
