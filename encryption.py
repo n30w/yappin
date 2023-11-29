@@ -16,17 +16,45 @@ IDEA:
 
 """class encrypter()
 
-methods RSA 256 bit   
-string --> enc 
+methods RSA 256 bit
+string --> enc
 enc --> string
 
-attributes 
+attributes
 def __init__(self, key):
-    self.public_key : str 
+    self.public_key : str
     self.private_key : str
-    
+
 look up: type annotation python
 
+<<<<<<< Updated upstream
 public and private key 
 
+=======
+public and private key
+>>>>>>> Stashed changes
 """
+
+
+class Encrypter:
+    def __init__(self) -> None:
+        self.public_key: str
+        self.private_key: str
+
+    def generate_keys(self) -> None:
+        """
+        Generates the public and private keys for the client.
+        """
+        pass
+
+    def encrypt(self, message: str) -> str:
+        """
+        Takes a non-encrypted message, then encrypts it, then returns the encrypted string.
+        """
+        pass
+
+    def decrypt(self, message: str) -> str:
+        """
+        Takes an encrypted message, decrypts it, then returns the decrypted string.
+        """
+        pass
