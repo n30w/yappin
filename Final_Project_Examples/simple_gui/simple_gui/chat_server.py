@@ -50,8 +50,11 @@ class Server:
 
                 if msg["action"] == "login":
                     name = msg["name"]
+                    pwd = msg["pwd"]
                     
+                    # NEW USER ENTER THE CHAT SERVER
                     if self.group.is_member(name) != True:
+                        self.group.user_pwd(name, pwd)
                         #move socket from new clients list to logged clients
                         self.new_clients.remove(sock)
                         #add into the name to sock mapping
@@ -61,11 +64,16 @@ class Server:
                         if name not in self.indices.keys():
                             try:
                                 self.indices[name]=pkl.load(open(name+'.idx','rb'))
+                                
                             except IOError: #chat index does not exist, then create one
-                                self.indices[name] = indexer.Index(name)
+                                self.indices[name] = indexer.Index(name, pwd)
+                                print('new user, added ' + name + '.idx')
+                                
                         print(name + ' logged in')
                         self.group.join(name)
                         mysend(sock, json.dumps({"action":"login", "status":"ok"}))
+                        
+                    # EXISTING USERNAME IN THE CHAT SERVER
                     else: #a client under this name has already logged in
                         mysend(sock, json.dumps({"action":"login", "status":"duplicate"}))
                         print(name + ' duplicate login attempt')
@@ -80,7 +88,7 @@ class Server:
         #remove sock from all lists
         name = self.logged_sock2name[sock]
         pkl.dump(self.indices[name], open(name + '.idx','wb'))
-        del self.indices[name]
+        #del self.indices[name]
         del self.logged_name2sock[name]
         del self.logged_sock2name[sock]
         self.all_sockets.remove(sock)

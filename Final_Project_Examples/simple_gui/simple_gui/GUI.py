@@ -7,13 +7,18 @@ Created on Fri Apr 30 13:36:58 2021
 """
 
 # import all the required  modules
+import re 
 import threading
 import select
 from tkinter import *
+from tkinter import messagebox
 from tkinter import font
 from tkinter import ttk
 from chat_utils import *
 import json
+
+import random
+import string
 
 # GUI class for the chat
 class GUI:
@@ -29,62 +34,77 @@ class GUI:
         self.my_msg = ""
         self.system_msg = ""
 
+    """ ====================== Login Window ====================== """
     def login(self):
-        # login window
+        
         self.login = Toplevel()
-        # set the title
-        self.login.title("Login")
-        self.login.resizable(width = False, 
-                             height = False)
-        self.login.configure(width = 400,
-                             height = 300)
-        # create a Label
-        self.pls = Label(self.login, 
+        
+        # set the prompt message for the user to enter name and password
+        self.login.title("Login & Password")
+        self.login.resizable(width = False, height = False)
+        self.login.configure(width = 400, height = 300)
+        
+        # create the prompt title and sets where the label will be placed in the window
+        self.title = Label(self.login, 
                        text = "Please login to continue",
                        justify = CENTER, 
                        font = "Helvetica 14 bold")
-          
-        self.pls.place(relheight = 0.15,
-                       relx = 0.2, 
-                       rely = 0.07)
-        # create a Label
+        
+        self.title.place(relheight = 0.13, relx = 0.2, rely = 0.07)
+        
+        # create a NAME label and sets where it will be placed in the window
         self.labelName = Label(self.login,
                                text = "Name: ",
                                font = "Helvetica 12")
           
-        self.labelName.place(relheight = 0.2,
-                             relx = 0.1, 
-                             rely = 0.2)
+        self.labelName.place(relheight = 0.2, relx = 0.1, rely = 0.2)
+        
+        # create a PASSWORD label and sets where it will be placed in the window
+        self.labelPwd = Label(self.login,
+                              text = "Password: ",
+                              font = "Helvetica 12")
+        
+        self.labelPwd.place(relheight = 0.2, relx = 0.1, rely = 0.35)
+
+
+        # create a entry box for inputing username 
+        self.entryName = Entry(self.login, font = "Helvetica 14")
           
-        # create a entry box for 
-        # tyoing the message
-        self.entryName = Entry(self.login, 
-                             font = "Helvetica 14")
+        self.entryName.place(relwidth = 0.5, relheight = 0.12,
+                             relx = 0.35, rely = 0.2)
           
-        self.entryName.place(relwidth = 0.4, 
-                             relheight = 0.12,
-                             relx = 0.35,
-                             rely = 0.2)
-          
+        # create an entry box for inputing the password
+        self.entryPwd = Entry(self.login, font = "Helvetica 14", show = "*")
+    
+        self.entryPwd.place(relwidth = 0.5, relheight = 0.12,
+                             relx = 0.35, rely = 0.37)
+
         # set the focus of the curser
+        # not really sure what this does lmao
         self.entryName.focus()
           
-        # create a Continue Button 
-        # along with action
+        # create a Continue Button to move onto the Chat window 
+        # BUT FIRST CHECKS the username and password with the .goAhead() funcation !!!!!
         self.go = Button(self.login,
                          text = "CONTINUE", 
                          font = "Helvetica 14 bold", 
-                         command = lambda: self.goAhead(self.entryName.get()))
+                         command = lambda: self.goAhead(self.entryName.get(), self.entryPwd.get()))
           
-        self.go.place(relx = 0.4,
-                      rely = 0.55)
+        self.go.place(relx = 0.4, rely = 0.55)
         self.Window.mainloop()
   
-    def goAhead(self, name):
-        if len(name) > 0:
-            msg = json.dumps({"action":"login", "name": name})
+    def goAhead(self, name, pwd):
+        # checks for strong password 
+        pwd_special_char = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
+        pwd_num = re.compile('[0-9]')
+        pwd_uppercase = re.compile('[A-Z]')
+
+        # if eveything is satisfied then send the login-user to the server
+        if len(name) > 0 and len(pwd) >=10 and pwd_special_char.search(pwd) and pwd_num.search(pwd) and pwd_uppercase.search(pwd):
+            msg = json.dumps({"action":"login", "name": name, "pwd": pwd})
             self.send(msg)
             response = json.loads(self.recv())
+            
             if response["status"] == 'ok':
                 self.login.destroy()
                 self.sm.set_state(S_LOGGEDIN)
@@ -97,10 +117,25 @@ class GUI:
                 self.textCons.see(END)
                 # while True:
                 #     self.proc()
-        # the thread to receive messages
+                
+            elif response["status"] == 'wrong password':
+                messagebox.showerror("Error", "Incorrect password ")
+                
+            # the thread to receive messages
             process = threading.Thread(target=self.proc)
             process.daemon = True
             process.start()
+        
+        # if password is not strong enough then suggest a stronger password
+        elif len(pwd) < 10 or not pwd_special_char.search(pwd) or not pwd_num.search(pwd) or not pwd_uppercase.search(pwd):           
+            gen_pwd = ''.join(random.choices(string.ascii_letters + string.digits, k=random.randint(10,30)))
+            messagebox.showerror("Error", "Password must be at least 10 characters long, contain at least one special character, contain at least one number, and one uppercase letter. \n\n Suggested Password: " + gen_pwd) 
+        
+        # if username is not entered      
+        # room for imporvement: suggest a new username 
+        else:
+            messagebox.showerror("Error", "Please fill all the fields")
+        
   
     # The main layout of the chat
     def layout(self,name):
