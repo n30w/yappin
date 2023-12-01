@@ -25,6 +25,7 @@ The goals for this project is to ensure that this code is as extensible and as m
 
 - Protobuf
 - Taskfile
+- Tkinter
 
 ## Notes
 
