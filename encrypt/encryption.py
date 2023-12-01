@@ -1,4 +1,6 @@
 import pickle
+import random
+import string
 
 """
 IDEA:
@@ -29,7 +31,6 @@ def __init__(self, key):
 look up: type annotation python
 
 public and private key
-
 """
 
 
@@ -53,8 +54,8 @@ class Key:
 
 class Encrypter:
     def __init__(self) -> None:
-        self.public_key: Key
-        self.private_key: Key
+        self.public_key: str
+        self.private_key: str
 
     def generate_keys(self) -> None:
         """
@@ -73,3 +74,16 @@ class Encrypter:
         Takes an encrypted message, decrypts it, then returns the decrypted string.
         """
         pass
+
+
+def generate_password(password_length: str) -> str:
+    """
+    Generates a password using random package. Returns empty string if length is invalid.
+
+    ### Args
+        password_length: str -- length of password, given as a string from GUI input.
+    """
+    length = int(password_length)
+    if length >= 5 and length <= 40:
+        return "".join(random.choices(string.ascii_letters + string.digits, k=length))
+    return ""
