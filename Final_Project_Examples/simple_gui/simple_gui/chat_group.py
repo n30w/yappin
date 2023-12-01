@@ -26,6 +26,7 @@ class Group:
     def __init__(self):
         self.members = {}
         self.chat_grps = {}
+        self.profiles = {}
         self.grp_ever = 0
 
     def join(self, name):
@@ -34,7 +35,11 @@ class Group:
 
     def is_member(self, name):
         return name in self.members.keys()
-
+    
+    def user_pwd(self, name, pwd):
+        self.profiles[name] = pwd
+        return  
+    
     def leave(self, name):
         self.disconnect(name)
         del self.members[name]
