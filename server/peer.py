@@ -1,26 +1,10 @@
+import betterproto
+from client.encryption import Key
+from server.net import Config
+from shared.enums import *
 from server.net import *
 from shared.types import *
-
-
-class Key:
-    """
-    Key represents the private or public that each peer posses. The "key" itself is just a long string of numbers and letters.
-
-    ---
-
-    ### Methods
-        get() -- returns the key
-        set(value: str) -- sets the key
-    """
-
-    def __init__(self, value: str = "") -> None:
-        self.__value: str = value
-
-    def get(self) -> str:
-        return self.__value
-
-    def set(self, value: str):
-        self.__value = value
+from shared.message import UserMessage
 
 
 class Message:
@@ -30,6 +14,7 @@ class Message:
 
     def __init__(self) -> None:
         self.body: str = ""
+        self.user_message = UserMessage
 
     def create(self) -> bool:
         """
@@ -38,21 +23,8 @@ class Message:
         return True
 
 
-class Action:
-    pass
-
-
-class Peer:
-    def __init__(self, config: Config, key: Key) -> None:
-        self.config: Config = config
-        self.__key: Key = key
-        self.__socket: Socket = Socket(self.config)
-
-    def get_key(self) -> str:
-        return self.__key.get()
-
-    def consume(self, obj: Message | Action) -> None:
-        """
-        Consumes either a Message or an Action and does something with it.
-        """
-        pass
+class ChatPeer(Peer):
+    def __init__(self, config: Config, username: str, key: Key) -> None:
+        super().__init__(config)
+        self.username: str = username
+        self.key: Key = key

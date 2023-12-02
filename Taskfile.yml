@@ -1,0 +1,12 @@
+version: "3"
+
+# https://taskfile.dev/usage/#including-other-taskfiles
+includes:
+  proto:
+    taskfile: ./shared/Taskfile.yml
+    dir: ./shared
+
+tasks:
+  build:
+    cmds:
+      - task proto:gen

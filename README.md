@@ -27,12 +27,21 @@ The goals for this project is to ensure that this code is as extensible and as m
 - Taskfile
 - Tkinter
 - rsa
+- grpcio-tools
+- grpclib
+- betterproto
 
 ## Notes
 
 - Client.py serves as the entry point for the client program. Server.py serves as the entry point for the server program.
 - Please use type safety!
 - The Taskfile.yml is used to synchronize commands and build without having to resort to many command line command executions.
+- Use protobuf compiler with ```protoc -I . --python_betterproto_out=. example.proto```
+- User commands are always preceded by a ```/```
+
+## Improvements
+
+- Can use separate API calls given different protobuf type
 
 ## Style Convention
 

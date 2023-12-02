@@ -1,0 +1,10 @@
+version: "3"
+
+# generates proto classes
+
+tasks:
+  gen:
+    cmds:
+      - protoc -I=. --python_out=. message.proto
+      - protoc -I . --python_betterproto_out=. message.proto
+    silent: true

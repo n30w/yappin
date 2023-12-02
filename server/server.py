@@ -1,20 +1,20 @@
-from typing import Self
+from typing import Self, Sequence
 from server.chat import Table
-from server.net import Config
-from server.peer import Peer
-from shared.types import T
+from server.net import Config, Server
+from server.peer import ChatPeer, Peer
+from shared.enums import State, Action
+from shared.protobuf import deserialize, serialize
+from shared.types import T, certain_attribute
 
 
-class Server:
+class ChatServer(Server):
+    """Manages the state of clients."""
+
     def __init__(self, config: Config) -> None:
-        self.__config: Config = config
+        super().__init__(config)
         self.__router: Router = Router()
         self.__bookkeeper: Bookkeeper = Bookkeeper()
         self.__tables: list[Table] = list()
-
-    # New sockets from peers must be in non-blocking mode
-    # socket.setblocking(0)
-    # so the program does not halt while handling connections. Concurrent execution.
 
     def run(self) -> None:
         """
@@ -23,19 +23,79 @@ class Server:
         """
         pass
 
-    # Will move this somewhere else later, maybe
-    def key_handshake(self) -> None:
-        """
-        Exchange the keys between the peers at the table, after they are seated.
-        """
+    def list_connections() -> list:
+        pass
 
-        table: Table = Table()
+    def connect_peer_to_peer(self, peer_1: ChatPeer, peer_2: ChatPeer) -> bool:
+        """Returns a bool of whether or not creating a table was successful"""
+        seated: bool = False
 
-        # Route key from the first peer to the second peer.
-        self.__router.select(table.seats[0].get_key()).route_to(table.seats[1])
+        # chatting OR table they are sitting at is already the one with the other peer.
+        if peer_2.get_state() == State.CHATTING or peer_2.get_state() == State.OFFLINE:
+            return False  # Cannot connect to someone who is already chatting
+        else:
+            table: Table = Table()
 
-        # Route key from the second peer to the first peer
-        self.__router.select(table.seats[1].get_key()).route_to(table.seats[0])
+            # seat our guests at a table
+            seated = table.seat(peer_1)
+            if not seated:
+                return False
+            seated = table.seat(peer_2)
+            if not seated:
+                return False
+
+            # facilitate key handshake
+            table.key_ring.append(peer_1.key, peer_2.key)
+
+            self.__router.select(table.key_ring[0]).route_to(peer_2)
+            self.__router.select(table.key_ring[1]).route_to(peer_1)
+
+            # Everyone is now chatting-able
+            peer_1.set_state(State.CHATTING)
+            peer_2.set_state(State.CHATTING)
+
+            # add the created table to a list of tables
+            self.__tables.append(table)
+
+            return True
+
+    def data_handler(self, data: str) -> None:
+        """Handles messages to the server."""
+
+        # Forward, Do, Respond – three functions that determine what the server does with a message. All result in a bool, success or failure.
+
+        # deserialize incoming protobuf
+        message = deserialize(data)
+
+        # indicates whether an operation succeeded or not
+        success: bool = False
+
+        # read the action
+        match message.action:
+            case Action.LOGIN:
+                pass
+            case Action.LOGOUT:
+                pass
+            case Action.CONNECT:
+                pass
+            case Action.DISCONNECT:
+                pass
+            case Action.SEARCH:
+                pass
+            case Action.MESSAGE:
+                pass
+            case _:  # How did you even get here dawg
+                # send client error response
+                pass
+
+        # serialize data again to send it off somewhere
+        forwarded_message = serialize(data)
+
+        # send a response code back of SUCCESS
+        if success:
+            pass
+        else:  # send response code of ERROR with reason
+            pass
 
 
 class Router:
@@ -69,7 +129,34 @@ class Router:
 # Bookkeeper makes sure all data is logged and stored, and makes sure users are logged.
 class Bookkeeper:
     def __init__(self) -> None:
-        pass
+        self.connections: list[ChatPeer] = list()
 
     def tabulate_message(self) -> None:
         pass
+
+    def tabulate_guests(self, tables: list[Table]) -> list[Peer]:
+        """
+        Returns the list of all peers that are logged into the server.
+        """
+
+        peers: list[ChatPeer] = []
+
+        for table in tables:
+            peers.extend(table.seats)
+
+        return peers
+
+
+def create_list(of: list[T], by: certain_attribute) -> list[T]:
+    """
+    ### Args
+        of: T -- target type/object to tabulate. Usually a container.
+        by: function -- function operation to retrieve something from the "what". Like an object attribute.
+    """
+
+    want: list[T] = []
+
+    for obj in of:
+        want.append(by(obj))
+
+    return want

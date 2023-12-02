@@ -1,45 +1,38 @@
 syntax = "proto3";
 
-// Stuff sent in a user's message to another user. The body is encrypted.
-message UserMessage {
-    string sender = 1; // Sender of message
-    string receiver = 2; // Receiver of message
-    string body = 3; // Message body, will be encrypted
-    uint32 date = 4; // Date sent
-}
+message DataMessage {
+    // User actions that are transmitted to the server.
+    enum ClientRequest {
+        ACTION_LOGIN = 0;
+        ACTION_LOGOUT = 1;
+        ACTION_CONNECT = 2;
+        ACTION_DISCONNECT = 3;
+        ACTION_SEARCH = 4;
+        ACTION_MESSAGE = 5; // Indicates that a client wants to message another client
+    }
 
-// Server uses this to return queried serach data.
-message UserMessages {
-    repeated UserMessage messages = 1;
-}
+    // Responses from the server, either a success or error.
+    enum ResponseCode {
+        RESPONSE_CODE_SUCCESS = 0;
+        RESPONSE_CODE_ERROR = 1;
+    }
 
-// EncryptionHandshake is simply the peer's public key for transmission. This is communicated to the server.
-message EncryptionHandshake {
-    string pubkey = 1; // Public Key
-}
+    // Response from the server with an accompanying message.
+    message ServerResponse {
+        ResponseCode response = 1;
+        string comment = 2; // server comment regarding what the response means.
+    }
 
-// User actions that are transmitted to the server.
-enum Action {
-    ACTION_LOGIN = 0;
-    ACTION_LOGOUT = 1;
-    ACTION_CONNECT = 2;
-    ACTION_DISCONNECT = 3;
-    ACTION_SEARCH = 4;
-}
+    // A message in chat
+    message ChatMessage {
+        string sender = 1;
+        string receiver = 2;
+        string body = 3;
+        string key = 4;
+        string date = 5;
+    }
 
-// User action message. Default for optional values is 0 in Enums. This is not sent with the UserMessage because of unnecessary bloat.
-message UserAction {
-    optional Action action = 1;
-}
-
-// Responses from the server, either a success or error.
-enum ResponseCode {
-    RESPONSE_CODE_SUCCESS = 0;
-    RESPONSE_CODE_ERROR = 1;
-}
-
-// Response from the server with an accompanying message.
-message ServerResponse {
-    optional ResponseCode response = 1;
-    optional string comment = 2; // server comment regarding what the response means.
+    ClientRequest action = 1; // User action. Server never sends actions.
+    ServerResponse response = 2; // Response server sends in regard to action. Client never sends repsonses.
+    repeated ChatMessage messages = 3; // UserMessages returned on search query
 }

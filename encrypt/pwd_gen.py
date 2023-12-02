@@ -1,6 +1,6 @@
 from tkinter import *
 
-from encryption import generate_password
+from client.encryption import generate_password
 
 # Constants defining minimum and maximum character count for password
 MIN_CHAR: int = 5
