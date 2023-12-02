@@ -1,6 +1,8 @@
-import pickle
+from shared.files import *
 import random
 import string
+
+import rsa
 
 """
 IDEA:
@@ -35,45 +37,60 @@ public and private key
 
 
 class Key:
-    def __init__(self, key: str) -> None:
-        self.key: str = key
+    def __init__(self, key: rsa.PublicKey | rsa.PrivateKey) -> None:
+        self.key: rsa.PublicKey | rsa.PrivateKey = key
 
-    def write(self, path="_key") -> None:
-        """Pickles the key."""
-        file = open(path, "wb")
-        pickle.dump(self, file)
-        file.close()
+        # checks if a key has been saved to disk or not
+        self.saved_to_disk: bool = False
 
-    def read(self, path="_key") -> str:
-        """Reads the key from the pickling"""
-        file = open(path, "rb")
-        data: Key = pickle.load(file)
-        file.close()
-        return data.key
+        # path to save file
+        self.save_path: str = ""
+
+    def serialize(self) -> str:
+        # save_pkcs1 returns bytes, then .decode is a method of bytes class, decodes into UTF-8
+        return self.key.save_pkcs1().decode("utf-8")
+
+    def save(self, path: str) -> None:
+        """saves key in string form to text file. If already saved, returns True."""
+        write(self.serialize(), path)
+        # if no errors
+        self.saved_to_disk = True
+
+    def load(self, path: str) -> str:
+        """loads a key from disk text file."""
+        return read(path)  # remove any \n
 
 
-class Encrypter:
-    def __init__(self) -> None:
-        self.public_key: str
-        self.private_key: str
+class Locksmith:
+    def check_for_local_keys(self) -> bool:
+        """Tries to find if there are any local keys already generated."""
 
-    def generate_keys(self) -> None:
+    @staticmethod
+    def generate_keys() -> (Key, Key):
         """
         Generates the public and private keys for the client.
         """
-        pass
 
-    def encrypt(self, message: str) -> str:
+        (rsa_gen_pub, rsa_gen_prv) = rsa.newkeys(256)
+
+        public_key: Key = Key(rsa_gen_pub)
+        private_key: Key = Key(rsa_gen_prv)
+
+        return (public_key, private_key)
+
+    @staticmethod
+    def encrypt(public_key: Key, message: str) -> str:
         """
         Takes a non-encrypted message, then encrypts it, then returns the encrypted string.
         """
-        pass
+        return rsa.encrypt(message.encode(), public_key.key).decode("utf-8")
 
-    def decrypt(self, message: str) -> str:
+    @staticmethod
+    def decrypt(private_key: Key, message: str) -> str:
         """
         Takes an encrypted message, decrypts it, then returns the decrypted string.
         """
-        pass
+        return rsa.decrypt(message.encode(), private_key.key).decode("utf-8")
 
 
 def generate_password(password_length: str) -> str:
