@@ -7,5 +7,8 @@ class Database:
     def __init__(self) -> None:
         pass
 
+    def store(self) -> None:
+        pass
+
     def consume(self, data: T):
         pass

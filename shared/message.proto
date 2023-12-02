@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+// DataMessages are expected to be sanitized when coming toward the server.
 message DataMessage {
     // User actions that are transmitted to the server.
     enum ClientRequest {
@@ -28,11 +29,13 @@ message DataMessage {
         string sender = 1;
         string receiver = 2;
         string body = 3;
-        string key = 4;
-        string date = 5;
+        string date = 4;
     }
 
     ClientRequest action = 1; // User action. Server never sends actions.
     ServerResponse response = 2; // Response server sends in regard to action. Client never sends repsonses.
     repeated ChatMessage messages = 3; // UserMessages returned on search query
+    string sender = 4; // username of the sender
+    string pubkey = 5; // public key of the sender
+    string params = 6; // command parameters, for example, user in /connect (user)
 }

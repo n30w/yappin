@@ -1,9 +1,4 @@
 def login() -> bool:
-    """
-    Route to login a user. Since logging in is the first thing that is sent during a client handshake, this function must check if the username is taken or not. This can deny connections.
-
-    The bool returned determines its success. True if successful, false if not.
-    """
     pass
 
 

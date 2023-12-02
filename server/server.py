@@ -13,8 +13,9 @@ class ChatServer(Server):
     def __init__(self, config: Config) -> None:
         super().__init__(config)
         self.__router: Router = Router()
-        self.__bookkeeper: Bookkeeper = Bookkeeper()
         self.__tables: list[Table] = list()
+        self.__online_users: dict[str, ChatPeer] = {}
+        # Database?
 
     def run(self) -> None:
         """
@@ -68,31 +69,86 @@ class ChatServer(Server):
         message = deserialize(data)
 
         # indicates whether an operation succeeded or not
-        success: bool = False
+        error: str | None = False
+
+        def _login() -> str | None:
+            """
+            Route to login a user. Since logging in is the first thing that is sent during a client handshake, this function must check if the username is taken or not. This can deny connections.
+
+            returns None or str. If not None, string describes the error.
+            """
+            if message.sender in self.__online_users:
+                return "username taken"
+            else:
+                # add username and new ChatPeer to list of online users
+                self.__online_users[message.sender] = ChatPeer(
+                    Config(provided_socket=accepted_connection),
+                    message.sender,
+                    message.pubkey,
+                )
+                # add user to connected clients
+
+                # if new user, add username to database
+
+                pass
+
+        def _logout() -> str | None:
+            pass
+
+        def _connect() -> str | None:
+            peer_1 = self.__online_users[message.sender]
+            peer_2 = self.__online_users[message.params]
+
+            connected = self.connect_peer_to_peer(peer_1, peer_2)
+
+            if connected:
+                return None
+            else:
+                return "peer offline or already chatting"
+
+        def _disconnect() -> str | None:
+            pass
+
+        def _search() -> str | None:
+            """Look through chat history and send it off"""
+            found: bool
+            if found:
+                return None
+            else:
+                return "keyword or phrase not found"
+
+        def _message() -> str | None:
+            pass
 
         # read the action
         match message.action:
             case Action.LOGIN:
-                pass
+                error = _login()
+
             case Action.LOGOUT:
-                pass
+                error = _logout()
+
             case Action.CONNECT:
-                pass
+                error = _connect()
+
             case Action.DISCONNECT:
-                pass
+                error = _disconnect()
+
             case Action.SEARCH:
-                pass
+                error = _search()
+
             case Action.MESSAGE:
-                pass
+                error = _message()
+
             case _:  # How did you even get here dawg
                 # send client error response
-                pass
+                error = "no tampering allowed"
 
         # serialize data again to send it off somewhere
         forwarded_message = serialize(data)
 
         # send a response code back of SUCCESS
-        if success:
+        if error is not None:
             pass
         else:  # send response code of ERROR with reason
             pass
@@ -126,25 +182,17 @@ class Router:
         return self
 
 
-# Bookkeeper makes sure all data is logged and stored, and makes sure users are logged.
-class Bookkeeper:
-    def __init__(self) -> None:
-        self.connections: list[ChatPeer] = list()
+def tabulate_guests(tables: list[Table]) -> list[ChatPeer]:
+    """
+    Returns the list of all peers that are logged into the server.
+    """
 
-    def tabulate_message(self) -> None:
-        pass
+    peers: list[ChatPeer] = []
 
-    def tabulate_guests(self, tables: list[Table]) -> list[Peer]:
-        """
-        Returns the list of all peers that are logged into the server.
-        """
+    for table in tables:
+        peers.extend(table.seats)
 
-        peers: list[ChatPeer] = []
-
-        for table in tables:
-            peers.extend(table.seats)
-
-        return peers
+    return peers
 
 
 def create_list(of: list[T], by: certain_attribute) -> list[T]:

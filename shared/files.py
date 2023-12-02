@@ -9,3 +9,8 @@ def write(data: T, path: str):
 
 def read():
     pass
+
+
+# database saving thing
+def pickle():
+    pass

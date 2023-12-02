@@ -6,24 +6,32 @@ from shared.types import Address
 
 # Network things
 
+DEFAULT_ADDRESS: Address = ("localhost", 1234)
+
 
 class Config:
     """
-    Config is a parent class that defines configurations for sockets, servers, and anything network related.
+    Config is a parent class that defines configurations for sockets, servers, and anything network related. Also carries socket data.
     """
 
     def __init__(
         self,
         address_family: socket.AddressFamily = socket.AF_INET,
         socket_kind: socket.SocketKind = socket.SOCK_STREAM,
+        binding: Address = "",
+        listen_queue: int = 6,
+        host_addr: Address = DEFAULT_ADDRESS,
+        client_addr: Address = DEFAULT_ADDRESS,
+        provided_socket: socket.socket | None = None,
     ) -> None:
         # Socket binding address
         self.SOCKET_ADDRESS_FAMILY: socket.AddressFamily = address_family
         self.SOCK_STREAM: socket.SocketKind = socket_kind
-        self.BINDING: Address
-        self.LISTEN_QUEUE: int = 6
-        self.HOST_ADDR: Address
-        self.CLIENT_ADDR: Address
+        self.BINDING: Address = binding
+        self.LISTEN_QUEUE: int = listen_queue
+        self.HOST_ADDR: Address = host_addr
+        self.CLIENT_ADDR: Address = client_addr
+        self.PROVIDED_SOCKET: socket.socket | None = provided_socket
 
 
 class Socket:
@@ -33,9 +41,14 @@ class Socket:
         """
 
         self.config: Config = config
-        self.__python_socket: socket = socket(
-            self.config.SOCKET_ADDRESS_FAMILY, self.config.SOCK_STREAM
-        )
+
+        if self.config.PROVIDED_SOCKET is not None:
+            # load a socket
+            self.__python_socket = self.config.PROVIDED_SOCKET
+        else:
+            self.__python_socket: socket.socket = socket(
+                self.config.SOCKET_ADDRESS_FAMILY, self.config.SOCK_STREAM
+            )
 
         return self
 
@@ -55,9 +68,9 @@ class Socket:
 
 
 class Peer:
-    def __init__(self, config: Config, key: Key) -> None:
+    def __init__(self, config: Config) -> None:
         self.config: Config = config
-        self.__socket: Socket = Socket(self.config).bind()
+        self.__socket: Socket = Socket(self.config)
 
         # a peer is only initialized when it is connected
         self.__state: State = State.CONNECTED
@@ -84,7 +97,6 @@ class Server:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.server_socket: Socket = Socket(config)
-        self.connections: list[Peer] = list()
 
     def __read_connections(self, connections: list) -> list[Any]:
         """Reads connections using select.select, returns the list of read connections."""

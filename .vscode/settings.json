@@ -4,6 +4,7 @@
         "Encrypter",
         "newkeys",
         "pkcs",
-        "Protobuf"
+        "Protobuf",
+        "pubkey"
     ]
 }

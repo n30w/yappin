@@ -26,6 +26,9 @@ class DataMessage(betterproto.Message):
     action: "DataMessageClientRequest" = betterproto.enum_field(1)
     response: "DataMessageServerResponse" = betterproto.message_field(2)
     messages: List["DataMessageChatMessage"] = betterproto.message_field(3)
+    sender: str = betterproto.string_field(4)
+    pubkey: str = betterproto.string_field(5)
+    params: str = betterproto.string_field(6)
 
 
 @dataclass
@@ -43,5 +46,4 @@ class DataMessageChatMessage(betterproto.Message):
     sender: str = betterproto.string_field(1)
     receiver: str = betterproto.string_field(2)
     body: str = betterproto.string_field(3)
-    key: str = betterproto.string_field(4)
-    date: str = betterproto.string_field(5)
+    date: str = betterproto.string_field(4)
