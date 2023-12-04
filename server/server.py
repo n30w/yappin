@@ -9,7 +9,7 @@ from shared.types import T, certain_attribute
 
 
 class ChatServer(Server):
-    """Manages the state of clients."""
+    """Manages clients"""
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
@@ -17,7 +17,6 @@ class ChatServer(Server):
         self.__tables: list[Table] = list()
         self.__online_users: dict[str, ChatPeer] = {}
         self.__database: Database = Database()
-        # Database?
 
     def run(self) -> None:
         """
@@ -126,11 +125,24 @@ class ChatServer(Server):
         def _message() -> str | None:
             peer_1 = self.__online_users[message.sender]
 
-            # check if peer_1 is seated
+            t: table
+            # check if bozo is seated
+            seated: bool = False
+
+            for table in self.__tables:
+                if peer_1.username in table.get_seated_info():
+                    seated = True
+                    t = table
+                    break
 
             # if not seated, return error
+            if not seated:
+                return "not seated"
 
             # if seated, forward the message to the recipient
+            peer_2 = t.get_peer(peer_1.username)
+
+            self.__router.select(data).route_to(peer_2)
 
             return None
 
@@ -157,9 +169,6 @@ class ChatServer(Server):
             case _:  # How did you even get here dawg
                 # send client error response
                 error = "no tampering allowed"
-
-        # serialize data again to send it off somewhere
-        forwarded_message = serialize(data)
 
         # send a response code back of SUCCESS
         if error is not None:
@@ -223,3 +232,12 @@ def create_list(of: list[T], by: certain_attribute) -> list[T]:
         want.append(by(obj))
 
     return want
+
+
+# def to(dest):
+#     def select(thing):
+#         dest.consume(thing)
+#     return select
+#
+# send = to(place)
+# send(msg)

@@ -13,7 +13,6 @@ class Table:
 
     ### Attributes
         @seats: list[Peer] -- a list of Peer objects containing the two peers seated at the table.
-        @table_top: list[Message]: a list of Message objects containing the messages in the conversation.
         @created_time: str -- the time the table was instantiated.
         @key_ring: list[Key] -- a list of two keys that holds the two public keys of the peers.
 
@@ -24,12 +23,6 @@ class Table:
     def __init__(self) -> None:
         # str is username of peer
         self.seats: dict[str, ChatPeer] = {}
-
-        # Straightforward implementation of table_top.
-        self.table_top: list[Message] = list()
-
-        # Alternative implementation of table_top.
-        # self.table_top: dict[ChatPeer, dict[int, Message]] = {}
 
         self.created_time: str = ""  # IMPLEMENT TIME PACKAGE
         self.key_ring: list[Key] = list()
@@ -42,11 +35,16 @@ class Table:
             return True
         return False
 
-    def get_seated_info(self) -> list[ChatPeer]:
+    def get_seated_info(self) -> list[str]:
         """
         Returns the peers sitting at the table.
         """
-        return [peer.username for peer in self.seats]
+        return self.seats.keys()
+
+    def get_peer(self, of: str) -> str:
+        for peer in self.seats.keys():
+            if peer is not of:
+                return peer
 
     def seat(self, peer: ChatPeer) -> bool:
         """
@@ -58,11 +56,3 @@ class Table:
         else:
             self.seats[peer.username] = peer
             return True
-
-    def update_table_top(self, peer: Peer, message: Message) -> Message:
-        """
-        Adds a message to the table_top. Returns the message that was tabulated.
-        """
-        idx = 0  # CHANGE THIS TO ACTUAL INDEX
-        self.table_top[peer][0] = message
-        return message
