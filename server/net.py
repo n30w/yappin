@@ -63,8 +63,59 @@ class Socket:
     def set_blocking(self) -> None:
         self.__python_socket.setblocking(0)
 
-    def transmit(self) -> None:
-        """Transmits data"""
+    def transmit(self, data: bytes) -> RuntimeError | None:
+        """
+        Transmits data to a peer. Returns none if no error, else, runtime error.
+        """
+
+        # Gets the length of the data, then makes a header that is the length of the data. So, int -> bytes conversion.
+        data_len = len(data)
+        header = data_len.to_bytes(4, byteorder="big")
+
+        # Creates the data to send.
+        data_to_send = header + data
+
+        total_sent: int = 0
+        while total_sent < len(data_to_send):
+            sent = self.__python_socket.send(data_to_send[total_sent:])
+
+            if sent == 0:
+                return RuntimeError("Socket connection broken")
+
+            total_sent += sent
+
+        return None
+
+    def _byte_received_data(self, n: int) -> RuntimeError | bytes:
+        """
+        'byte' here is used as a verb. This method receives socket data from the socket. It is used in receive() to piece together the message. This method also handles partial reads.
+        """
+        data = bytearray()
+
+        while len(data) < n:
+            packet = self.__python_socket.recv(n - len(data))
+
+            if not packet:
+                return RuntimeError("Socket connection broken")
+
+            data.extend(packet)
+
+        return bytes(data)
+
+    def receive(self) -> RuntimeError | bytes:
+        """
+        First reads the header from data received from the socket, then reads the data in given the length of the header.
+        """
+
+        # Get header information, reads the first four bytes of the header, since the header length is 4.
+        header = self._byte_received_data(4)
+
+        # Now that we have the header, lets turn it into an int, or the data length, that we can use in a method.
+        data_length = int.from_bytes(header, byteorder="big")
+
+        # Using the length of the data we have just found, lets read all of the data now.
+        data = self._byte_received_data(data_length)
+        return data
 
 
 class Peer:
