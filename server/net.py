@@ -23,6 +23,7 @@ class Config:
         host_addr: Address = DEFAULT_ADDRESS,
         client_addr: Address = DEFAULT_ADDRESS,
         provided_socket: socket.socket | None = None,
+        socket_blocking: bool = True,
     ) -> None:
         # Socket binding address
         self.SOCKET_ADDRESS_FAMILY: socket.AddressFamily = address_family
@@ -32,6 +33,7 @@ class Config:
         self.HOST_ADDR: Address = host_addr
         self.CLIENT_ADDR: Address = client_addr
         self.PROVIDED_SOCKET: socket.socket | None = provided_socket
+        self.SOCKET_BLOCKING: bool = socket_blocking
 
 
 class Socket:
@@ -49,6 +51,9 @@ class Socket:
             self.__python_socket: socket.socket = socket(
                 self.config.SOCKET_ADDRESS_FAMILY, self.config.SOCK_STREAM
             )
+
+        if self.config.SOCKET_BLOCKING is True:
+            self.__python_socket.setblocking(0)
 
         return self
 

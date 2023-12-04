@@ -26,10 +26,10 @@ class Table:
         self.seats: dict[str, ChatPeer] = {}
 
         # Straightforward implementation of table_top.
-        # self.table_top: list[Message] = list()
+        self.table_top: list[Message] = list()
 
         # Alternative implementation of table_top.
-        self.table_top: dict[ChatPeer, dict[int, Message]] = {}
+        # self.table_top: dict[ChatPeer, dict[int, Message]] = {}
 
         self.created_time: str = ""  # IMPLEMENT TIME PACKAGE
         self.key_ring: list[Key] = list()

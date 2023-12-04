@@ -38,6 +38,7 @@ The goals for this project is to ensure that this code is as extensible and as m
 - The Taskfile.yml is used to synchronize commands and build without having to resort to many command line command executions.
 - Use protobuf compiler with ```protoc -I . --python_betterproto_out=. example.proto```
 - User commands are always preceded by a ```/```
+- Chat histories are NOT stored on server. Only P2P.
 
 ## Improvements
 

@@ -1,5 +1,6 @@
 from typing import Self, Sequence
 from server.chat import Table
+from server.database import Database
 from server.net import Config, Server
 from server.peer import ChatPeer, Peer
 from shared.enums import State, Action
@@ -15,6 +16,7 @@ class ChatServer(Server):
         self.__router: Router = Router()
         self.__tables: list[Table] = list()
         self.__online_users: dict[str, ChatPeer] = {}
+        self.__database: Database = Database()
         # Database?
 
     def run(self) -> None:
@@ -60,7 +62,7 @@ class ChatServer(Server):
 
             return True
 
-    def data_handler(self, data: str) -> None:
+    def data_handler(self, data: bytes) -> None:
         """Handles messages to the server."""
 
         # Forward, Do, Respond – three functions that determine what the server does with a message. All result in a bool, success or failure.
@@ -77,20 +79,24 @@ class ChatServer(Server):
 
             returns None or str. If not None, string describes the error.
             """
-            if message.sender in self.__online_users:
+            if (
+                message.sender in self.__online_users
+                or message.sender in self.__database
+            ):
                 return "username taken"
             else:
                 # add username and new ChatPeer to list of online users
                 self.__online_users[message.sender] = ChatPeer(
-                    Config(provided_socket=accepted_connection),
+                    Config(provided_socket=accepted_connection, socket_blocking=False),
                     message.sender,
                     message.pubkey,
                 )
-                # add user to connected clients
 
-                # if new user, add username to database
+                # update database with user status.
+                # new users are added since this is just a dictionary.
+                self.__database.set_user_state(message.sender, State.CONNECTED)
 
-                pass
+            return None
 
         def _logout() -> str | None:
             pass
@@ -118,7 +124,15 @@ class ChatServer(Server):
                 return "keyword or phrase not found"
 
         def _message() -> str | None:
-            pass
+            peer_1 = self.__online_users[message.sender]
+
+            # check if peer_1 is seated
+
+            # if not seated, return error
+
+            # if seated, forward the message to the recipient
+
+            return None
 
         # read the action
         match message.action:
@@ -149,6 +163,7 @@ class ChatServer(Server):
 
         # send a response code back of SUCCESS
         if error is not None:
+            # Access server socket
             pass
         else:  # send response code of ERROR with reason
             pass

@@ -25,9 +25,9 @@ class ResponseCode(Enum):
     ERROR = DataMessageResponseCode.RESPONSE_CODE_ERROR
 
 
-def deserialize(data: str) -> DataMessage:
+def deserialize(data: bytes) -> DataMessage:
     return DataMessage.ParseFromString(data)
 
 
-def serialize(data: DataMessage) -> str:
+def serialize(data: DataMessage) -> bytes:
     return data.SerializeToString()
