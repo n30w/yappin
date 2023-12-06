@@ -23,9 +23,7 @@ class Table:
     def __init__(self) -> None:
         # str is username of peer
         self.seats: dict[str, ChatPeer] = {}
-
         self.created_time: str = ""  # IMPLEMENT TIME PACKAGE
-        self.key_ring: list[Key] = list()
 
     def is_vacant(self) -> bool:
         """

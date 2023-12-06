@@ -1,3 +1,4 @@
+import socket
 from typing import Self, Sequence
 from server.chat import Table
 from server.database import Database
@@ -13,19 +14,25 @@ class ChatServer(Server):
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
-        self.__router: Router = Router()
         self.__tables: list[Table] = list()
         self.__online_users: dict[str, ChatPeer] = {}
         self.__database: Database = Database()
+
+    def _get_table_of(self, username: str) -> (Table, int) | None:
+        t: table
+        i = 0
+        for table in self.__tables:
+            if username in table.seats.keys():
+                return table, i
+            i += 1  # Bad code
+
+        return None
 
     def run(self) -> None:
         """
         TODO: Add socket logic and select statements.
         Note that select.select reads the sockets and returns them, in a list. That list has all of the sockets that the server can then operate on. For each item in the list, the server decides what to do with it given certain conditions.
         """
-        pass
-
-    def list_connections() -> list:
         pass
 
     def connect_peer_to_peer(self, peer_1: ChatPeer, peer_2: ChatPeer) -> bool:
@@ -61,12 +68,20 @@ class ChatServer(Server):
 
             return True
 
-    def data_handler(self, data: bytes) -> None:
-        """Handles messages to the server."""
+    def _is_seated(self, username: str) -> bool:
+        """Checks if a bozo is sitting at any table"""
+        for table in self.__tables:
+            if username in table.get_seated_info():
+                return True
 
-        # Forward, Do, Respond – three functions that determine what the server does with a message. All result in a bool, success or failure.
+        return False
 
-        # deserialize incoming protobuf
+    def data_handler(self, data: bytes, accepted_connection: socket.socket) -> None:
+        """
+        Handles messages to the server. Incoming data bytes SHOULD BE ALREADY deserialized when being consumed by this function.
+        """
+        # deserialize incoming protobuf to check what the header is.
+        # Please move this to somewhere better.
         message = deserialize(data)
 
         # indicates whether an operation succeeded or not
@@ -97,9 +112,6 @@ class ChatServer(Server):
 
             return None
 
-        def _logout() -> str | None:
-            pass
-
         def _connect() -> str | None:
             peer_1 = self.__online_users[message.sender]
             peer_2 = self.__online_users[message.params]
@@ -112,15 +124,33 @@ class ChatServer(Server):
                 return "peer offline or already chatting"
 
         def _disconnect() -> str | None:
-            pass
+            [table, index]: [Table, int] = self._get_table_of(message.sender)
 
-        def _search() -> str | None:
-            """Look through chat history and send it off"""
-            found: bool
-            if found:
-                return None
-            else:
-                return "keyword or phrase not found"
+            if table is None:
+                return "not seated at a table"
+
+            seated = table.seats.keys()
+
+            # Destroy table
+            del self.__tables[index]
+
+            # reset peer states
+            self.__database.set_user_state(seated[0], State.CONNECTED)
+            self.__database.set_user_state(seated[1], State.CONNECTED)
+
+            return None
+
+        def _logout() -> str | None:
+            # disconnects the sender from their table first
+            if self._is_seated(message.sender):
+                error = _disconnect()
+            if error is not None:
+                return error
+
+            self.__database.set_user_state(message.sender, State.OFFLINE)
+            del self.__online_users[message.sender]
+
+            return None
 
         def _message() -> str | None:
             peer_1 = self.__online_users[message.sender]
@@ -142,7 +172,12 @@ class ChatServer(Server):
             # if seated, forward the message to the recipient
             peer_2 = t.get_peer(peer_1.username)
 
-            self.__router.select(data).route_to(peer_2)
+            def by_username(name: str):
+                # returns the ChatPeer object of corresponding username
+                return self.__online_users[name]
+
+            send = to(peer_2, by_username)
+            send(data)
 
             return None
 
@@ -178,34 +213,6 @@ class ChatServer(Server):
             pass
 
 
-class Router:
-    """
-    Routes data between internal server components. Does NOT transmit anything via network connections, that is what net module is for. This is an internal server class.
-
-    Rather than taking a functional approach, this is more-so OOP because the object, in this case Router, is the doer of the action rather than a group of imperative functions.
-    """
-
-    def __init__(self) -> None:
-        self.__selection: T = None
-
-    def select(self, target: T) -> Self:
-        """
-        Selects a target, i.e. the thing or the "what" that will be routed.
-        """
-
-        self.__selection = target
-        return self
-
-    def route_to(self, dest: T) -> Self:
-        """
-        Routes an object to an internal destination. Returns a bool of whether the routing was possible or not. Wipes internal buffer after destination consumes the object.
-        """
-
-        dest.consume(self.__selection)
-        self.__selection = None
-        return self
-
-
 def tabulate_guests(tables: list[Table]) -> list[ChatPeer]:
     """
     Returns the list of all peers that are logged into the server.
@@ -234,10 +241,18 @@ def create_list(of: list[T], by: certain_attribute) -> list[T]:
     return want
 
 
-# def to(dest):
-#     def select(thing):
-#         dest.consume(thing)
-#     return select
-#
-# send = to(place)
-# send(msg)
+# Dispatches a message to send off
+def to(dest: any, by: function):
+    """
+    Functional approach to routing messages between peers and server internals.
+
+    Args:
+        dest -- destination to send the object to
+        by -- function to retrieve the object that will consume
+    """
+    receiver = by(dest)
+
+    def route(what: any):
+        receiver.consume(what)
+
+    return route

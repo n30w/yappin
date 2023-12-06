@@ -3,6 +3,7 @@ from client.encryption import Key
 from server.net import Config
 from shared.enums import *
 from server.net import *
+from shared.protobuf import serialize
 from shared.types import *
 from shared.message import UserMessage
 
@@ -28,3 +29,8 @@ class ChatPeer(Peer):
         super().__init__(config)
         self.username: str = username
         self.key: Key = key
+
+    def consume(message: bytes):
+        # Turns the message back into protobuf serialization format
+        message = serialize(message)
+        super().consume(message)

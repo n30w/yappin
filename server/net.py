@@ -131,11 +131,13 @@ class Peer:
         # a peer is only initialized when it is connected
         self.__state: State = State.CONNECTED
 
-    def consume(self, obj) -> None:
+    def consume(self, message: bytes) -> None:
         """
         Consumes either a Message or an Action and does something with it.
         """
-        pass
+        err = self.__socket.transmit(message)
+        if err is not None:
+            print(err)
 
     def get_state(self) -> State:
         """Gets the state"""
