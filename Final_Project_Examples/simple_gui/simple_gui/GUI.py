@@ -60,11 +60,11 @@ class GUI:
         self.labelName.place(relheight = 0.2, relx = 0.1, rely = 0.2)
         
         # create a PASSWORD label and sets where it will be placed in the window
-        self.labelPwd = Label(self.login,
+        self.labelPassword = Label(self.login,
                               text = "Password: ",
                               font = "Helvetica 12")
         
-        self.labelPwd.place(relheight = 0.2, relx = 0.1, rely = 0.35)
+        self.labelPassword.place(relheight = 0.2, relx = 0.1, rely = 0.35)
 
 
         # create a entry box for inputing username 
@@ -74,9 +74,9 @@ class GUI:
                              relx = 0.35, rely = 0.2)
           
         # create an entry box for inputing the password
-        self.entryPwd = Entry(self.login, font = "Helvetica 14", show = "*")
+        self.entryPassword = Entry(self.login, font = "Helvetica 14", show = "*")
     
-        self.entryPwd.place(relwidth = 0.5, relheight = 0.12,
+        self.entryPassword.place(relwidth = 0.5, relheight = 0.12,
                              relx = 0.35, rely = 0.37)
 
         # set the focus of the curser
@@ -88,20 +88,20 @@ class GUI:
         self.go = Button(self.login,
                          text = "CONTINUE", 
                          font = "Helvetica 14 bold", 
-                         command = lambda: self.goAhead(self.entryName.get(), self.entryPwd.get()))
+                         command = lambda: self.goAhead(self.entryName.get(), self.entryPassword.get()))
           
         self.go.place(relx = 0.4, rely = 0.55)
         self.Window.mainloop()
   
-    def goAhead(self, name, pwd):
+    def goAhead(self, name, password):
         # checks for strong password 
-        pwd_special_char = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
-        pwd_num = re.compile('[0-9]')
-        pwd_uppercase = re.compile('[A-Z]')
+        password_special_char = re.compile('[@_!#$%^&*()<>?/\|}{~:]')
+        password_num = re.compile('[0-9]')
+        password_uppercase = re.compile('[A-Z]')
 
         # if eveything is satisfied then send the login-user to the server
-        if len(name) > 0 and len(pwd) >=10 and pwd_special_char.search(pwd) and pwd_num.search(pwd) and pwd_uppercase.search(pwd):
-            msg = json.dumps({"action":"login", "name": name, "pwd": pwd})
+        if len(name) > 0 and len(password) >=10 and password_special_char.search(password) and password_num.search(password) and password_uppercase.search(password):
+            msg = json.dumps({"action":"login", "name": name, "password": password})
             self.send(msg)
             response = json.loads(self.recv())
             
@@ -118,18 +118,23 @@ class GUI:
                 # while True:
                 #     self.proc()
                 
+                # the thread to receive messages
+                process = threading.Thread(target=self.proc)
+                process.daemon = True
+                process.start()
+            
             elif response["status"] == 'wrong password':
                 messagebox.showerror("Error", "Incorrect password ")
                 
-            # the thread to receive messages
-            process = threading.Thread(target=self.proc)
-            process.daemon = True
-            process.start()
+                
+            elif response["status"] == 'duplicate':
+                messagebox.showerror("Error", "Username already exists")
+                
         
         # if password is not strong enough then suggest a stronger password
-        elif len(pwd) < 10 or not pwd_special_char.search(pwd) or not pwd_num.search(pwd) or not pwd_uppercase.search(pwd):           
-            gen_pwd = ''.join(random.choices(string.ascii_letters + string.digits, k=random.randint(10,30)))
-            messagebox.showerror("Error", "Password must be at least 10 characters long, contain at least one special character, contain at least one number, and one uppercase letter. \n\n Suggested Password: " + gen_pwd) 
+        elif len(password) < 10 or not password_special_char.search(password) or not password_num.search(password) or not password_uppercase.search(password):           
+            gen_password = ''.join(random.choices(string.ascii_letters + string.digits, k=random.randint(10,30)))
+            messagebox.showerror("Error", "Password must be at least 10 characters long, contain at least one special character, contain at least one number, and one uppercase letter. \n\n Suggested Password: " + gen_password) 
         
         # if username is not entered      
         # room for imporvement: suggest a new username 

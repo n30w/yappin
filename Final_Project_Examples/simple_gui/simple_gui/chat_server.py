@@ -14,6 +14,7 @@ import json
 import pickle as pkl
 from chat_utils import *
 import chat_group as grp
+import hashlib
 
 class Server:
     def __init__(self):
@@ -50,11 +51,10 @@ class Server:
 
                 if msg["action"] == "login":
                     name = msg["name"]
-                    pwd = msg["pwd"]
-                    
+                    password = msg["password"]                               
                     # NEW USER ENTER THE CHAT SERVER
                     if self.group.is_member(name) != True:
-                        self.group.user_pwd(name, pwd)
+                        #self.group.user_pwd(name, pwd)
                         #move socket from new clients list to logged clients
                         self.new_clients.remove(sock)
                         #add into the name to sock mapping
@@ -64,14 +64,25 @@ class Server:
                         if name not in self.indices.keys():
                             try:
                                 self.indices[name]=pkl.load(open(name+'.idx','rb'))
+                                if password != self.indices[name].get_password():
+                                    mysend(sock, json.dumps({"action":"login", "status":"wrong password"}))
+                                    print(name + ' entered wrong password')
+                                else:
+                                    mysend(sock, json.dumps({"action":"login", "status":"ok"}))
+                                    print(name + ' logged in password')
+                                    self.group.join(name)
                                 
                             except IOError: #chat index does not exist, then create one
-                                self.indices[name] = indexer.Index(name, pwd)
+                                self.indices[name] = indexer.Index(name, password)
+                                print(self.indices[name])
+                                mysend(sock, json.dumps({"action":"login", "status":"ok"})) 
+                                print(name + ' logged in IOERROR')
+                                self.group.join(name)
                                 print('new user, added ' + name + '.idx')
                                 
-                        print(name + ' logged in')
-                        self.group.join(name)
-                        mysend(sock, json.dumps({"action":"login", "status":"ok"}))
+                        #print(name + ' logged in here')
+                        #self.group.join(name)
+                        #mysend(sock, json.dumps({"action":"login", "status":"ok"}))
                         
                     # EXISTING USERNAME IN THE CHAT SERVER
                     else: #a client under this name has already logged in
