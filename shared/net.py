@@ -1,4 +1,6 @@
 import socket
+import traceback
+from typing import Optional
 from shared.chat_types import Address
 
 
@@ -116,7 +118,7 @@ class Socket:
 
         return None
 
-    def _byte_received_data(self, n: int) -> bytes | None:
+    def _byte_received_data(self, n: int) -> Optional[bytes]:
         """
         'byte' here is used as a verb. This method receives socket data from the socket. It is used in receive() to piece together the message. This method also handles partial reads.
         """
@@ -125,29 +127,27 @@ class Socket:
 
         while len(data) < n:
             try:
-                packet = self.python_socket.recv(n - len(data))
+                packet: bytes = self.python_socket.recv(n - len(data))
 
                 if not packet:
-                    raise ConnectionError("Socket connection closed by peer")
+                    return None
 
                 data.extend(packet)
 
             except ConnectionResetError:
                 print("ConnectionResetError: Connection reset by peer")
-                # Handle connection reset, for example, by returning None or raising a custom exception
                 return None
             except OSError as e:
                 print(f"OSError: {e}")
-                # Handle other potential socket errors
+                traceback.print_exc()
                 return None
             except Exception as e:
-                # Handle any other exceptions
                 print(f"Unexpected error: {e}")
                 return None
 
         return bytes(data)
 
-    def receive(self) -> bytes:
+    def receive(self) -> bytes | None:
         """
         First reads the header from data received from the socket, then reads the data in given the length of the header.
         """
@@ -156,7 +156,9 @@ class Socket:
         header = self._byte_received_data(4)
 
         if header is None:
-            raise RuntimeError("Failed to receive data: connection error - no header")
+            # raise RuntimeError("Failed to receive data: connection error - no header")
+            # Bozo disconnected
+            return None
 
         # Now that we have the header, lets turn it into an int, or the data length, that we can use in a method.
         data_length = int.from_bytes(header, byteorder="big")
@@ -165,9 +167,95 @@ class Socket:
         data = self._byte_received_data(data_length)
 
         if data is None:
-            raise RuntimeError("Failed to receive data: connection error - no data")
+            return None
+            # raise RuntimeError("Failed to receive data: connection error - no data")
 
         return data
+
+
+def transmit(sock: socket.socket, data: bytes) -> RuntimeError | None:
+    """
+    Transmits data to a peer. Returns none if no error, else, runtime error.
+    """
+
+    # Gets the length of the data, then makes a header that is the length of the data. So, int -> bytes conversion.
+    data_len = len(data)
+    header = data_len.to_bytes(4, byteorder="big")
+
+    # Creates the data to send.
+    data_to_send = header + data
+
+    total_sent: int = 0
+    while total_sent < len(data_to_send):
+        sent = sock.send(data_to_send[total_sent:])
+
+        if sent == 0:
+            return RuntimeError("Socket connection broken")
+
+        total_sent += sent
+
+    return None
+
+
+def _byte_received_data(
+    sock: socket.socket,
+    n: int,
+) -> Optional[bytes]:
+    """
+    'byte' here is used as a verb. This method receives socket data from the socket. It is used in receive() to piece together the message. This method also handles partial reads.
+    """
+
+    data = bytearray()
+
+    while len(data) < n:
+        try:
+            packet: bytes = sock.recv(n - len(data))
+
+            if not packet:
+                return None
+
+            data.extend(packet)
+
+        except ConnectionResetError:
+            print("ConnectionResetError: Connection reset by peer")
+            traceback.print_exc()
+            return None
+        except OSError as e:
+            print(f"OSError: {e}")
+            traceback.print_exc()
+            return None
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            traceback.print_exc()
+            return None
+
+    return bytes(data)
+
+
+def receive(sock: socket.socket) -> bytes | None:
+    """
+    First reads the header from data received from the socket, then reads the data in given the length of the header.
+    """
+
+    # Get header information, reads the first four bytes of the header, since the header length is 4.
+    header = _byte_received_data(sock, 4)
+
+    if header is None:
+        # raise RuntimeError("Failed to receive data: connection error - no header")
+        # Bozo disconnected
+        return None
+
+    # Now that we have the header, lets turn it into an int, or the data length, that we can use in a method.
+    data_length = int.from_bytes(header, byteorder="big")
+
+    # Using the length of the data we have just found, lets read all of the data now.
+    data = _byte_received_data(sock, data_length)
+
+    if data is None:
+        return None
+        # raise RuntimeError("Failed to receive data: connection error - no data")
+
+    return data
 
 
 class Pluggable:
@@ -181,7 +269,7 @@ class Pluggable:
     def get_socket(self) -> socket.socket:
         return self.socket.python_socket
 
-    def get_data(self) -> bytes:
+    def get_data(self) -> Optional[bytes]:
         """
         Pluggable class method that retrieves data from the socket.
         """

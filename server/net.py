@@ -39,17 +39,45 @@ class Server(Pluggable):
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         super().__init__(self.config)
+        self.online_connections: list[any] = []
 
-    def read_connections(self, connections: list[Pluggable]) -> list[Any]:
+        # translation tools
+        self.socket_to_pluggable: dict[socket.socket, Pluggable] = {}
+        self.pluggable_to_socket: dict[Pluggable, socket.socket] = {}
+
+        # str is an arbitrary string identifier for the Pluggable type
+        self.active_connections: dict[str, Pluggable] = {}
+
+    def purge_links(self, connection: Pluggable) -> Pluggable:
+        sock = self.pluggable_to_socket.pop(connection)
+        plug = self.socket_to_pluggable.pop(sock)
+        return plug
+
+    def read_connections(self, connections: list[Pluggable]) -> list[Pluggable]:
         """
         Reads connections using select.select, returns the list of read connections.
         """
 
         sockets: list = []
+
         # turn the list of connections into sockets
         for c in connections:
             sockets.append(c.get_socket())
 
         # read the sockets
         read, _write, _error = select.select(sockets, [], [])
-        return read
+
+        plugs: list = []
+
+        # from the sockets, get their corresponding plugs
+        for r in read:
+            plugs.append(self.socket_to_pluggable[r])
+
+        return plugs
+
+    def link_socket_and_plug(self, sock: socket.socket, plug: Pluggable):
+        """
+        Links a socket and a peer together, both ways.
+        """
+        self.socket_to_pluggable[sock] = plug
+        self.pluggable_to_socket[plug] = sock

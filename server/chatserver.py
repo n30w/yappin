@@ -1,3 +1,4 @@
+import traceback
 from chat import Table
 from database import Database
 from shared.logger import StdoutLogger
@@ -19,82 +20,99 @@ class ChatServer(Server):
         self.__online_users: dict[str, ChatPeer] = {}
         self.__database: Database = Database()
         # self.__all_net_sockets: list[Pluggable] = []
-        self.__all_net_sockets: dict[str, Pluggable] = {}
         self.__logger: StdoutLogger = StdoutLogger()
 
     def run(self) -> None:
         self.socket.bind()
         self.socket.listen()
 
-        self.__all_net_sockets["my_addr"] = self
+        """ IMPORTANT! Link own socket to socket and plug """
+        self.active_connections["my_addr"] = self
+        self.link_socket_and_plug(self.get_socket(), self)
 
         self.__logger.log(f"Server running @{self.config.BINDING}")
 
         try:
             while True:
                 read_connections = self.read_connections(
-                    self.__all_net_sockets.values()
+                    self.active_connections.values()
                 )
 
-                """
-                Check if any users are using their sockets. If they are, handle them accordingly.
-                """
-                # for user in self.__online_users.values():
-                #     if user.get_socket() in read_connections:
-                #         data = user.get_data()
-                #         message = deserialize(data)
-                #         error = self.data_handler(message)
+                for connection in read_connections:
+                    if connection is self:
+                        """
+                        In this case, a new client wants to connect. Check if their connection is valid. If so, let them in and make a new user. If not, they are not allowed to connect. Delete their socket. Send a transmitted message back. NEW CLIENTS ARE ALWAYS A LOGIN REQUEST!
+                        """
+                        self._handle_incoming_connection()
 
-                #         if error is not None:
-                #             print(error)
-                #             error_message = build_message(ResponseCode.ERROR, new_peer)
-                #             runtime_error = user.send_data(error_message)
-                #             print(runtime_error)
-
-                """
-                A new client wants to connect. Check if their connection is valid. If so, let them in and make a new user. If not, they are not allowed to connect. Delete their socket. Send a transmitted message back. NEW CLIENTS ARE ALWAYS A LOGIN REQUEST!
-                """
-                if self.get_socket() in read_connections:
-                    new_socket, incoming_address = self.accept_connection()
-
-                    self.__logger.log(
-                        f"=== INBOUND CONNECTION: @{incoming_address} ==="
-                    )
-
-                    # creates a new socket from the incoming connection, with a config
-                    config = Config(
-                        provided_socket=new_socket,
-                        connection_addr=incoming_address,
-                        socket_blocking=True,
-                    )
-
-                    possible_new_client = Socket(config)
-
-                    # creates a new ChatPeer from the new_client if username is valid
-                    new_peer: Exception | ChatPeer = self._attempt_client_login(
-                        possible_new_client
-                    )
-
-                    # if something fails when validating the connection, make sure to send the client a notification about it. Then delete their socket.
-                    if new_peer is Exception:
-                        message = build_message(ResponseCode.ERROR, new_peer)
-                        possible_new_client.transmit(message)
-                        possible_new_client.close()
-                        # del new_peer
                     else:
-                        # add the new client to the list of online users
-                        self.__all_net_sockets[new_peer.username] = new_peer
-                        self.__online_users[new_peer.username] = new_peer
-                        self.__database.store_config(new_peer)
-                        self.__logger.log(f"(LOGIN) @{new_peer.username}")
-                        self.__logger.log(
-                            f"currently online: {self.__online_users.keys()}"
-                        )
+                        """
+                        Handle activity from other sockets that have activity.
+                        """
+                        self._handle_client_message(connection)
 
         except Exception as e:
             print(f"An error has occurred: {e}")
+            traceback.print_exc()
         finally:
             self.socket.close()
+
+    def _handle_incoming_connection(self) -> None:
+        new_socket, incoming_address = self.accept_connection()
+
+        self.__logger.log(f"=== INBOUND CONNECTION: @{incoming_address} ===")
+
+        # creates a new socket from the incoming connection, with a config
+        config = Config(
+            provided_socket=new_socket,
+            connection_addr=incoming_address,
+            socket_blocking=True,
+        )
+
+        # possible_new_client = Socket(config)
+        new_client = Socket(config)
+        raw_data = receive(new_socket)
+        message = deserialize(raw_data)
+
+        new_peer = ChatPeer(
+            Config(provided_socket=new_client.get(), socket_blocking=False),
+            username=message.sender,
+            key=message.pubkey,
+        )
+        # creates a new ChatPeer from the new_client if username is valid
+        # new_peer: ChatPeer = self._attempt_client_login(possible_new_client)
+        self.link_socket_and_plug(new_peer.get_socket(), new_peer)
+        self.active_connections[new_peer.username] = new_peer
+        self.__online_users[new_peer.username] = new_peer
+        self.__database.store_config(new_peer)
+        self.__logger.log(f"(LOGIN) @{new_peer.username}")
+        self.__logger.log(f"currently online: {self.__online_users}")
+
+        # if something fails when validating the connection, make sure to send the client a notification about it. Then delete their socket.
+        # if new_peer is Exception:
+        #     # message = build_message(ResponseCode.ERROR, new_peer)
+        #     # possible_new_client.transmit(message)
+        #     possible_new_client.close()
+        #     # del new_peer
+        # else:
+        # add the new client to the list of online users
+
+    def _handle_client_message(self, connection: Pluggable) -> None:
+        # read the data out of the connection (the socket)
+        data = connection.get_data()
+        if data is not None:
+            message = deserialize(data)
+            self.data_handler(message, connection)
+
+        # data = user.get_data()
+        #         message = deserialize(data)
+        #         error = self.data_handler(message)
+
+        #         if error is not None:
+        #             print(error)
+        #             error_message = build_message(ResponseCode.ERROR, new_peer)
+        #             runtime_error = user.send_data(error_message)
+        #             print(runtime_error)
 
     def _get_table_of(self, username: str) -> tuple[Table, int] | None:
         t: table
@@ -158,7 +176,7 @@ class ChatServer(Server):
 
         return False
 
-    def _attempt_client_login(self, new_client: Socket) -> Exception | ChatPeer:
+    def _attempt_client_login(self, new_client: Socket) -> ChatPeer:
         """
         Based on data retrieved from a new_client socket (an incoming login request), this method either adds a new connection to the list of connections and creates a new ChatPeer OR returns an exception.
         """
@@ -191,9 +209,9 @@ class ChatServer(Server):
 
         except Exception as e:
             print(f"Error receiving initial message from new client: {e}")
-            return e
+            traceback.print_exc()
 
-    def data_handler(self, message: DataMessage) -> str | None:
+    def data_handler(self, message: DataMessage, connection: Pluggable) -> str | None:
         """
         Handles messages to the server. Incoming data bytes SHOULD BE ALREADY deserialized when being consumed by this function.
         """
@@ -270,16 +288,10 @@ class ChatServer(Server):
 
             # Delete sender from online users and socket connections
 
-            # THIS HAS TO BE DONE BETTER.
-            self.__all_net_sockets[
-                self.__database.get_config(message.sender).CONNECTION_ADDR
-            ].get_socket().close()
-
-            del self.__online_users[message.sender]
-
-            del self.__all_net_sockets[
-                self.__database.get_config(message.sender).CONNECTION_ADDR
-            ]
+            self.__online_users.pop(message.sender)
+            self.active_connections.pop(message.sender)
+            final = self.purge_links(connection)
+            final.socket.close()
 
             print(f"@{message.sender} logged out")
 

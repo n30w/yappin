@@ -22,12 +22,27 @@ class Client:
         self.__username = username
 
     def run(self):
+        print(f"Starting client as {self.__username}")
         make_message = from_sender(self.__username)
-        msg = make_message("hello there everyone", A_MESSAGE)
-
         self.socket.connect()
+        msg = make_message("hello", A_LOGIN)
         self.socket.transmit(msg)
-        self.socket.close()
+
+        try:
+            while True:
+                user_input = input("Enter message (/q to exit): ")
+                if user_input.lower() == "/q":
+                    break
+
+                msg = make_message(user_input, A_LOGIN)
+                # self.socket.transmit(msg)
+
+        except Exception as e:
+            print(f"Error: {e}")
+
+        finally:
+            self.socket.close()
+            print("Connection terminated")
 
 
 def from_sender(sender: str):
@@ -36,7 +51,7 @@ def from_sender(sender: str):
 
     def create(text: str, action: int) -> bytes:
         dm.action = action
-        dm.messages.append(text.encode())
+        dm.params = text
         dm.pubkey = "123456"
         return dm.SerializeToString()
 
