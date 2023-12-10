@@ -25,6 +25,14 @@ class ResponseCode(Enum):
     ERROR = DataMessageResponseCode.RESPONSE_CODE_ERROR
 
 
+def build_message(res_code: ResponseCode, text: str) -> bytes:
+    """builds a message into bytes that can be sent. The bytes outputted are ALREADY SERIALIZED"""
+    message = DataMessage()
+    message.response = res_code
+    message.params = text
+    return serialize(message)
+
+
 def deserialize(data: bytes) -> DataMessage:
     return DataMessage.ParseFromString(data)
 

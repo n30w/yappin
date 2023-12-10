@@ -18,7 +18,7 @@ class Config:
         self,
         address_family: socket.AddressFamily = socket.AF_INET,
         socket_kind: socket.SocketKind = socket.SOCK_STREAM,
-        binding: Address = "",
+        binding: Address = ("", 0),
         listen_queue: int = 6,
         host_addr: Address = DEFAULT_ADDRESS,
         client_addr: Address = DEFAULT_ADDRESS,
@@ -59,11 +59,23 @@ class Socket:
 
     def bind(self) -> None:
         """starts the socket"""
+        if self.config.BINDING == ("", 0):
+            raise ValueError("invalid binding address")
         self.__python_socket.bind(self.config.BINDING)
 
     def listen(self) -> None:
         """Starts listening and the number of connections to listen to"""
+        if self.config.LISTEN_QUEUE < 2:
+            raise ValueError("listen_queue must be greater than 1")
         self.__python_socket.listen(self.config.LISTEN_QUEUE)
+
+    def accept(self) -> socket.socket:
+        """
+        Accepts a socket from self.__python_socket and returns a new accepted socket from that socket.
+        """
+        socket, address = self.__python_socket.accept()
+        del address
+        return socket
 
     def set_blocking(self) -> None:
         self.__python_socket.setblocking(0)
@@ -123,10 +135,36 @@ class Socket:
         return data
 
 
-class Peer:
+class Pluggable:
+    """Defines anything that has a 'socket', something that is pluggable."""
+
+    def __init__(self, config: Config) -> None:
+        self.__socket = Socket(config)
+
+    def get_socket(self) -> socket.socket:
+        return self.__socket.__python_socket
+
+    def get_data(self) -> bytes:
+        """
+        Pluggable class method that retrieves data from the socket.
+        """
+        return self.__socket.receive()
+
+    def send_data(self, data: bytes) -> RuntimeError | None:
+        """
+        Pluggable class method that sends data to transmit it to a socket
+        """
+        error = self.__socket.transmit(data)
+        return error
+
+    def accept_connection(self) -> socket.socket:
+        return self.__socket.accept()
+
+
+class Peer(Pluggable):
     def __init__(self, config: Config) -> None:
         self.config: Config = config
-        self.__socket: Socket = Socket(self.config)
+        super().__init__(config)
 
         # a peer is only initialized when it is connected
         self.__state: State = State.CONNECTED
@@ -149,22 +187,26 @@ class Peer:
         return self.__state
 
 
-class Server:
+class Server(Pluggable):
     """Class that defines the 'network' component of what a server is. The thing that calls the shots."""
 
     def __init__(self, config: Config) -> None:
         self.config: Config = config
-        self.server_socket: Socket = Socket(config)
+        super().__init__(config)
 
-    def __read_connections(self, connections: list) -> list[Any]:
+    def _read_connections(self, connections: list[Pluggable]) -> list[Any]:
         """Reads connections using select.select, returns the list of read connections."""
+
+        sockets: list = []
+        # turn the list of connections into sockets
+        for c in connections:
+            sockets.append(c.get_socket())
+
+        # read the sockets
         read, _write, _error = select.select(connections, [], [])
         return read
 
-    def listen_and_serve(self) -> None:
-        self.server_socket.bind()
-        self.server_socket.listen()
-
+    def _listen_and_serve(self) -> None:
         socket_connections: list[Socket] = [self.server_socket]
 
         while True:

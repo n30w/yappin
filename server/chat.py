@@ -12,7 +12,7 @@ class Table:
     ---
 
     ### Attributes
-        @seats: list[Peer] -- a list of Peer objects containing the two peers seated at the table.
+        @seats: dict[str, ChatPeer] -- a dict of Peer objects containing the two peers seated at the table.
         @created_time: str -- the time the table was instantiated.
         @key_ring: list[Key] -- a list of two keys that holds the two public keys of the peers.
 
