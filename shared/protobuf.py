@@ -34,7 +34,8 @@ def build_message(res_code: ResponseCode, text: str) -> bytes:
 
 
 def deserialize(data: bytes) -> DataMessage:
-    return DataMessage.ParseFromString(data)
+    dm = DataMessage()
+    return dm.parse(data)
 
 
 def serialize(data: DataMessage) -> bytes:

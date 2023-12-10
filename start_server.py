@@ -10,7 +10,7 @@ from net import Config
 
 
 def main() -> None:
-    config = Config(binding=("localhost", 1234), listen_queue=8, socket_blocking=False)
+    config = Config(binding=("127.0.0.1", 1234), listen_queue=8, socket_blocking=False)
     server = ChatServer(config)
     server.run()
 

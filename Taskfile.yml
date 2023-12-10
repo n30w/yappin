@@ -7,6 +7,12 @@ includes:
     dir: ./shared
 
 tasks:
+  server:
+    cmds:
+      - python3 ./start_server.py
+  client:
+    cmds:
+      - python3 ./start_client.py
   build:
     cmds:
       - task proto:gen

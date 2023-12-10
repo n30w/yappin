@@ -1,8 +1,8 @@
 import betterproto
-from client.encryption import Key
-from net import Config
+from shared.net import Config
+from server.net import Peer
+from shared.encryption import Key
 from shared.enums import *
-from net import *
 from shared.protobuf import serialize
 from shared.chat_types import *
 
