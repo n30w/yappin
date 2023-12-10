@@ -1,8 +1,7 @@
 import socket, select
 from typing import Any, Self
-from client.encryption import Key
+from shared.chat_types import *
 from shared.enums import State
-from shared.types import Address
 
 # Network things
 
@@ -24,6 +23,7 @@ class Config:
         client_addr: Address = DEFAULT_ADDRESS,
         provided_socket: socket.socket | None = None,
         socket_blocking: bool = True,
+        connection_addr: str = "",
     ) -> None:
         # Socket binding address
         self.SOCKET_ADDRESS_FAMILY: socket.AddressFamily = address_family
@@ -34,10 +34,15 @@ class Config:
         self.CLIENT_ADDR: Address = client_addr
         self.PROVIDED_SOCKET: socket.socket | None = provided_socket
         self.SOCKET_BLOCKING: bool = socket_blocking
+        self.CONNECTION_ADDR: str = connection_addr
 
 
 class Socket:
-    def __init__(self, config: Config) -> Self:
+    """
+    Socket wraps functionality for Python sockets.
+    """
+
+    def __init__(self, config: Config) -> None:
         """
         Initializes and binds a socket to a particular port.
         """
@@ -46,39 +51,45 @@ class Socket:
 
         if self.config.PROVIDED_SOCKET is not None:
             # load a socket
-            self.__python_socket = self.config.PROVIDED_SOCKET
+            self.python_socket = self.config.PROVIDED_SOCKET
         else:
-            self.__python_socket: socket.socket = socket(
+            self.python_socket: socket.socket = socket.socket(
                 self.config.SOCKET_ADDRESS_FAMILY, self.config.SOCK_STREAM
             )
 
         if self.config.SOCKET_BLOCKING is True:
-            self.__python_socket.setblocking(0)
+            self.python_socket.setblocking(0)
 
-        return self
+    def get(self) -> socket.socket:
+        """
+        Returns the internal python socket for config purposes.
+        """
+        return self.python_socket
 
     def bind(self) -> None:
         """starts the socket"""
         if self.config.BINDING == ("", 0):
             raise ValueError("invalid binding address")
-        self.__python_socket.bind(self.config.BINDING)
+        self.python_socket.bind(self.config.BINDING)
 
     def listen(self) -> None:
         """Starts listening and the number of connections to listen to"""
         if self.config.LISTEN_QUEUE < 2:
             raise ValueError("listen_queue must be greater than 1")
-        self.__python_socket.listen(self.config.LISTEN_QUEUE)
+        self.python_socket.listen(self.config.LISTEN_QUEUE)
 
-    def accept(self) -> socket.socket:
+    def accept(self) -> tuple[socket.socket, Address]:
         """
         Accepts a socket from self.__python_socket and returns a new accepted socket from that socket.
         """
-        socket, address = self.__python_socket.accept()
-        del address
-        return socket
+        socket, address = self.python_socket.accept()
+        return (socket, address)
+
+    def close(self) -> None:
+        self.python_socket.close()
 
     def set_blocking(self) -> None:
-        self.__python_socket.setblocking(0)
+        self.python_socket.setblocking(0)
 
     def transmit(self, data: bytes) -> RuntimeError | None:
         """
@@ -136,35 +147,41 @@ class Socket:
 
 
 class Pluggable:
-    """Defines anything that has a 'socket', something that is pluggable."""
+    """
+    Defines anything that has a 'socket', something that is pluggable.
+    """
 
     def __init__(self, config: Config) -> None:
-        self.__socket = Socket(config)
+        self.socket = Socket(config)
 
     def get_socket(self) -> socket.socket:
-        return self.__socket.__python_socket
+        return self.socket.python_socket
 
     def get_data(self) -> bytes:
         """
         Pluggable class method that retrieves data from the socket.
         """
-        return self.__socket.receive()
+        return self.socket.receive()
 
     def send_data(self, data: bytes) -> RuntimeError | None:
         """
         Pluggable class method that sends data to transmit it to a socket
         """
-        error = self.__socket.transmit(data)
+        error = self.socket.transmit(data)
         return error
 
-    def accept_connection(self) -> socket.socket:
-        return self.__socket.accept()
+    def accept_connection(self) -> tuple[socket.socket, str]:
+        new_socket: socket.socket
+        ip: Address
+
+        new_socket, ip = self.socket.accept()
+        return (new_socket, ip[0])
 
 
 class Peer(Pluggable):
     def __init__(self, config: Config) -> None:
         self.config: Config = config
-        super().__init__(config)
+        super().__init__(self.config)
 
         # a peer is only initialized when it is connected
         self.__state: State = State.CONNECTED
@@ -192,10 +209,12 @@ class Server(Pluggable):
 
     def __init__(self, config: Config) -> None:
         self.config: Config = config
-        super().__init__(config)
+        super().__init__(self.config)
 
     def _read_connections(self, connections: list[Pluggable]) -> list[Any]:
-        """Reads connections using select.select, returns the list of read connections."""
+        """
+        Reads connections using select.select, returns the list of read connections.
+        """
 
         sockets: list = []
         # turn the list of connections into sockets
@@ -203,15 +222,5 @@ class Server(Pluggable):
             sockets.append(c.get_socket())
 
         # read the sockets
-        read, _write, _error = select.select(connections, [], [])
+        read, _write, _error = select.select(sockets, [], [])
         return read
-
-    def _listen_and_serve(self) -> None:
-        socket_connections: list[Socket] = [self.server_socket]
-
-        while True:
-            read_connections: list[Any] = self.__read_connections(socket_connections)
-
-            for peer in read_connections:
-                if peer is self.server_socket:
-                    print("")

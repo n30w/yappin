@@ -26,7 +26,7 @@ class ResponseCode(Enum):
 
 
 def build_message(res_code: ResponseCode, text: str) -> bytes:
-    """builds a message into bytes that can be sent. The bytes outputted are ALREADY SERIALIZED"""
+    """builds a message into bytes that can be sent. The bytes outputted are ALREADY SERIALIZED. The text supplied is put into the message params attribute."""
     message = DataMessage()
     message.response = res_code
     message.params = text

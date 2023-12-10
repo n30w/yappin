@@ -2,7 +2,7 @@
 This file contains classes and functions related to chatting.
 """
 
-from server.peer import *
+from peer import *
 
 
 class Table:

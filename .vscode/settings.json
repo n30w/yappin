@@ -1,10 +1,15 @@
 {
     "cSpell.words": [
         "betterproto",
+        "chatserver",
         "Encrypter",
         "newkeys",
         "pkcs",
         "Protobuf",
         "pubkey"
+    ],
+    "python.analysis.extraPaths": [
+        "./shared",
+        "./server"
     ]
 }
