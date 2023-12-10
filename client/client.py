@@ -2,6 +2,7 @@
 Physical application that is the client.
 """
 
+from shared.encryption import Key, Locksmith
 from shared.protobuf import Action, serialize
 from shared.message import DataMessage
 from shared.net import *
@@ -15,6 +16,22 @@ A_SEARCH = 4
 A_MESSAGE = 5
 
 
+COMMAND_BANK: list[str] = ["quit", "chat", "commands"]
+
+
+def sanitize_input(input: str) -> tuple[str, str]:
+    """
+    From user input via command line, sanitizes the input to check for commands.
+    """
+
+    # retrieves the first word after the '/' in the input string
+    full_line: str = input.split(" ")
+    command: str = full_line[0][1:]
+    params: str = full_line[1:]
+
+    return command, params
+
+
 class Client:
     def __init__(self, config: Config, username: str) -> None:
         self.socket = Socket(config)
@@ -22,37 +39,74 @@ class Client:
         self.__username = username
 
     def run(self):
-        print(f"Starting client as {self.__username}")
+        exited = False
+
+        print(
+            f"v(0 o 0)v\n~================~\n  yappin' as @{self.__username}\n~================~"
+        )
         make_message = from_sender(self.__username)
+
+        # Initial login handshake
         self.socket.connect()
-        msg = make_message("hello", A_LOGIN)
+        msg = make_message("hello", "params", A_MESSAGE)
         self.socket.transmit(msg)
 
         try:
-            while True:
-                user_input = input("Enter message (/q to exit): ")
-                if user_input.lower() == "/q":
-                    break
+            while not exited:
+                action_queued: bool = False
+                command: str
+                params: str
 
-                msg = make_message(user_input, A_LOGIN)
-                # self.socket.transmit(msg)
+                user_input = input("[:>> ")
+
+                if user_input[0] == "/":
+                    command, params = sanitize_input(user_input)
+                    if command not in COMMAND_BANK:
+                        print("invalid command!")
+                    else:
+                        match command:
+                            case "commands":
+                                print(f"Available commands:\n\t{COMMAND_BANK}")
+
+                            case "quit":
+                                print("[~] Quitting...")
+                                action_queued = True
+                                exited = True
+                                msg = make_message("", "", A_LOGOUT)
+
+                            case "chat":
+                                msg = make_message(params, "", A_CONNECT)
+                                print(f"[~] Attempting connection with {params}...")
+                                action_queued = True
+
+                            case _:
+                                print("how'd you even get here what")
+
+                if action_queued:
+                    self.socket.transmit(msg)
 
         except Exception as e:
             print(f"Error: {e}")
 
         finally:
             self.socket.close()
-            print("Connection terminated")
 
 
 def from_sender(sender: str):
     dm = DataMessage()
     dm.sender = sender
+    public_key: Key
+    private_key: Key
+    public_key, private_key = Locksmith.generate_keys()
+    serialized_pub_key: str = public_key.serialize()
 
-    def create(text: str, action: int) -> bytes:
+    print(serialized_pub_key)
+
+    def create(params: str, text: str, action: int) -> bytes:
         dm.action = action
-        dm.params = text
-        dm.pubkey = "123456"
+        dm.params = params
+        dm.messages.append(text.encode())
+        dm.pubkey = serialized_pub_key
         return dm.SerializeToString()
 
     return create

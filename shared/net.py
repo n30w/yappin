@@ -173,7 +173,7 @@ class Socket:
         return data
 
 
-def transmit(sock: socket.socket, data: bytes) -> RuntimeError | None:
+def transmit(sock: socket.socket, data: bytes) -> None:
     """
     Transmits data to a peer. Returns none if no error, else, runtime error.
     """
@@ -190,7 +190,7 @@ def transmit(sock: socket.socket, data: bytes) -> RuntimeError | None:
         sent = sock.send(data_to_send[total_sent:])
 
         if sent == 0:
-            return RuntimeError("Socket connection broken")
+            raise RuntimeError("Socket connection broken")
 
         total_sent += sent
 
