@@ -34,22 +34,37 @@ class ChatServer(Server):
 
         try:
             while True:
-                read_connections = self.read_connections(
+                # read_connections = self.read_connections(
+                #     self.active_connections.values()
+                # )
+
+                # perhaps, for the sake of blocking, lets implement select here?
+
+                sockets: list[socket.socket] = self.connections_to_sockets(
                     self.active_connections.values()
                 )
 
-                for connection in read_connections:
-                    if connection is self:
+                read, _write, _error = select.select(sockets, [], [])
+
+                for sock in read:
+                    # Or we can transmute here?
+                    # connection = self.socket_to_pluggable[sock]
+
+                    if sock is self.get_socket():
                         """
                         In this case, a new client wants to connect. Check if their connection is valid. If so, let them in and make a new user. If not, they are not allowed to connect. Delete their socket. Send a transmitted message back. NEW CLIENTS ARE ALWAYS A LOGIN REQUEST!
                         """
-                        self._handle_incoming_connection()
+
+                        # transmute the sock connection into ChatPeer internally.
+                        self._handle_incoming_connection(sock)
 
                     else:
                         """
                         Handle activity from other sockets that have activity.
                         """
-                        self._handle_client_message(connection)
+
+                        # also transmute the sock connection into ChatPeer internally here.
+                        self._handle_client_message(sock)
 
         except Exception as e:
             print(f"An error has occurred: {e}")
@@ -57,20 +72,22 @@ class ChatServer(Server):
         finally:
             self.socket.close()
 
-    def _handle_incoming_connection(self) -> None:
-        new_socket, incoming_address = self.accept_connection()
+    def _handle_incoming_connection(self, sock: socket.socket) -> None:
+        # new_socket, incoming_address = self.accept_connection()
+        new_socket, incoming_address = sock.accept()
 
         self.__logger.log(f"=== INBOUND CONNECTION: @{incoming_address} ===")
 
         # creates a new socket from the incoming connection, with a config
         config = Config(
             provided_socket=new_socket,
-            connection_addr=incoming_address,
-            socket_blocking=True,
+            connection_addr=incoming_address[0],
         )
 
-        # possible_new_client = Socket(config)
         new_client = Socket(config)
+        new_client.config.SOCKET_BLOCKING = False
+        new_client.set_blocking()
+        new_socket.setblocking(False)
         raw_data = receive(new_socket)
         message = deserialize(raw_data)
 
@@ -79,13 +96,14 @@ class ChatServer(Server):
             username=message.sender,
             key=message.pubkey,
         )
+
         # creates a new ChatPeer from the new_client if username is valid
         # new_peer: ChatPeer = self._attempt_client_login(possible_new_client)
         self.link_socket_and_plug(new_peer.get_socket(), new_peer)
         self.active_connections[new_peer.username] = new_peer
         self.__online_users[new_peer.username] = new_peer
         self.__database.store_config(new_peer)
-        self.__logger.log(f"(LOGIN) @{new_peer.username}")
+        self.__logger.log(f"(USER ACTION):: LOGIN :: @{new_peer.username}")
         self.__logger.log(f"currently online: {self.__online_users}")
 
         # if something fails when validating the connection, make sure to send the client a notification about it. Then delete their socket.
@@ -97,8 +115,9 @@ class ChatServer(Server):
         # else:
         # add the new client to the list of online users
 
-    def _handle_client_message(self, connection: Pluggable) -> None:
+    def _handle_client_message(self, sock: socket.socket) -> None:
         # read the data out of the connection (the socket)
+        connection: Pluggable = self.socket_to_pluggable[sock]
         data = connection.get_data()
         if data is not None:
             message = deserialize(data)
@@ -217,7 +236,6 @@ class ChatServer(Server):
         """
 
         # indicates whether an operation succeeded or not
-        error: str | None
 
         # callback function for send
         def by_username(name: str):
@@ -273,30 +291,6 @@ class ChatServer(Server):
 
             return None
 
-        def _logout() -> str | None:
-            """
-            Client full system logout.
-            """
-
-            # disconnects the sender from their table first
-            if self._is_seated(message.sender):
-                error = _disconnect()
-            if error is not None:
-                return error
-
-            self.__database.set_user_state(message.sender, State.OFFLINE)
-
-            # Delete sender from online users and socket connections
-
-            self.__online_users.pop(message.sender)
-            self.active_connections.pop(message.sender)
-            final = self.purge_links(connection)
-            final.socket.close()
-
-            print(f"@{message.sender} logged out")
-
-            return None
-
         def _message() -> str | None:
             peer_1 = self.__online_users[message.sender]
 
@@ -326,36 +320,37 @@ class ChatServer(Server):
 
             return None
 
-        # print(f"@{message.sender} requests #{message.action}")
+        self.__logger.log(f"@{message.sender} requested #{message.action}")
 
         # read the action
         match message.action:
-            case Action.LOGOUT:
-                error = _logout()
+            case 1:  # I don't know why I can't use Action
+                """
+                Client full system logout.
+                """
 
-            case Action.CONNECT:
-                error = _connect()
+                # disconnects the sender from their table first
+                # if self._is_seated(message.sender):
+                #     error = _disconnect()
+                # if error is not None:
+                #     return error
 
-            case Action.DISCONNECT:
-                error = _disconnect()
+                # internal database cleanup
+                self.__database.set_user_state(message.sender, State.OFFLINE)
 
-            case Action.MESSAGE:
-                error = _message()
+                # Delete sender from online users and socket connections
+                self.__online_users.pop(message.sender)
+                self.active_connections.pop(message.sender)
+                final = self.purge_links(connection)
+                final.socket.close()
+
+                self.__logger.log(f"@{message.sender} logged out")
+
+                return None
 
             case _:  # How did you even get here dawg
                 # send client error response
-                error = "no tampering allowed"
-
-        return error
-
-        # send a response code back of SUCCESS
-        # if error is not None:
-        #     print(message.sender)
-        #     peer = self.__online_users[message.sender]
-        #     send = to(peer, by_username)
-        #     server_message = build_message(ResponseCode.ERROR, error)
-        #     data = serialize(server_message)
-        #     send(data)
+                self.__logger.log("NO TAMPERING ALLOWED")
 
 
 def tabulate_guests(tables: list[Table]) -> list[ChatPeer]:

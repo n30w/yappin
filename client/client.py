@@ -38,13 +38,21 @@ class Client:
         self.__config = config
         self.__username = username
 
+        # Encryption
+        self.__public_key: Key
+        self.__private_key: Key
+        self.__public_key, self.__private_key = Locksmith.generate_keys()
+        self.__serialized_pub_key: str = self.__public_key.serialize()
+
     def run(self):
+        make_message = from_sender(self.__username, self.__serialized_pub_key)
+
         exited = False
 
-        print(
-            f"v(0 o 0)v\n~================~\n  yappin' as @{self.__username}\n~================~"
-        )
-        make_message = from_sender(self.__username)
+        print("\n~================~\n")
+        print(f" v(0 o 0)v yappin' as @{self.__username}\n")
+        print(f"RSA Public Key: \n{self.__serialized_pub_key}")
+        print("~================~\n")
 
         # Initial login handshake
         self.socket.connect()
@@ -92,21 +100,15 @@ class Client:
             self.socket.close()
 
 
-def from_sender(sender: str):
+def from_sender(sender: str, pub_key: str):
     dm = DataMessage()
     dm.sender = sender
-    public_key: Key
-    private_key: Key
-    public_key, private_key = Locksmith.generate_keys()
-    serialized_pub_key: str = public_key.serialize()
-
-    print(serialized_pub_key)
 
     def create(params: str, text: str, action: int) -> bytes:
         dm.action = action
         dm.params = params
         dm.messages.append(text.encode())
-        dm.pubkey = serialized_pub_key
+        dm.pubkey = pub_key
         return dm.SerializeToString()
 
     return create

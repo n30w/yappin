@@ -53,6 +53,20 @@ class Server(Pluggable):
         plug = self.socket_to_pluggable.pop(sock)
         return plug
 
+    def connections_to_sockets(
+        self, connections: list[Pluggable]
+    ) -> list[socket.socket]:
+        sockets: list[socket.socket] = []
+        for c in connections:
+            sockets.append(c.get_socket())
+        return sockets
+
+    def sockets_to_connections(self, sockets: list[socket.socket]) -> list[Pluggable]:
+        connections: list[Pluggable] = []
+        for s in sockets:
+            connections.append(self.socket_to_pluggable[s])
+        return connections
+
     def read_connections(self, connections: list[Pluggable]) -> list[Pluggable]:
         """
         Reads connections using select.select, returns the list of read connections.
