@@ -5,9 +5,9 @@ from shared.logger import StdoutLogger
 from server.net import *
 from shared.net import *
 from peer import ChatPeer
-from shared.enums import State, Action
+from shared.enums import Action, State, ACTIONS
 from shared.message import DataMessage
-from shared.protobuf import ResponseCode, build_message, deserialize, serialize
+from shared.protobuf import ResponseCode, build_server_response, deserialize, serialize
 from shared.chat_types import T, certain_attribute
 
 
@@ -19,8 +19,6 @@ class ChatServer(Server):
         self.__tables: list[Table] = list()
         self.__online_users: dict[str, ChatPeer] = {}
         self.__database: Database = Database()
-        # self.__all_net_sockets: list[Pluggable] = []
-        self.__logger: StdoutLogger = StdoutLogger()
 
     def run(self) -> None:
         self.socket.bind()
@@ -30,16 +28,10 @@ class ChatServer(Server):
         self.active_connections["my_addr"] = self
         self.link_socket_and_plug(self.get_socket(), self)
 
-        self.__logger.log(f"Server running @{self.config.BINDING}")
+        StdoutLogger.log(f"Server running @{self.config.BINDING}")
 
         try:
             while True:
-                # read_connections = self.read_connections(
-                #     self.active_connections.values()
-                # )
-
-                # perhaps, for the sake of blocking, lets implement select here?
-
                 sockets: list[socket.socket] = self.connections_to_sockets(
                     self.active_connections.values()
                 )
@@ -47,15 +39,11 @@ class ChatServer(Server):
                 read, _write, _error = select.select(sockets, [], [])
 
                 for sock in read:
-                    # Or we can transmute here?
-                    # connection = self.socket_to_pluggable[sock]
-
                     if sock is self.get_socket():
                         """
                         In this case, a new client wants to connect. Check if their connection is valid. If so, let them in and make a new user. If not, they are not allowed to connect. Delete their socket. Send a transmitted message back. NEW CLIENTS ARE ALWAYS A LOGIN REQUEST!
                         """
 
-                        # transmute the sock connection into ChatPeer internally.
                         self._handle_incoming_connection(sock)
 
                     else:
@@ -63,9 +51,11 @@ class ChatServer(Server):
                         Handle activity from other sockets that have activity.
                         """
 
-                        # also transmute the sock connection into ChatPeer internally here.
                         self._handle_client_message(sock)
 
+        except KeyboardInterrupt:
+            # Close all sockets
+            pass
         except Exception as e:
             print(f"An error has occurred: {e}")
             traceback.print_exc()
@@ -75,19 +65,20 @@ class ChatServer(Server):
     def _handle_incoming_connection(self, sock: socket.socket) -> None:
         # new_socket, incoming_address = self.accept_connection()
         new_socket, incoming_address = sock.accept()
+        new_socket.setblocking(False)
 
-        self.__logger.log(f"=== INBOUND CONNECTION: @{incoming_address} ===")
+        StdoutLogger.log(f"=== INBOUND CONNECTION: @{incoming_address} ===")
 
         # creates a new socket from the incoming connection, with a config
         config = Config(
             provided_socket=new_socket,
             connection_addr=incoming_address[0],
+            socket_blocking=False,
         )
 
         new_client = Socket(config)
         new_client.config.SOCKET_BLOCKING = False
-        new_client.set_blocking()
-        new_socket.setblocking(False)
+
         raw_data = receive(new_socket)
         message = deserialize(raw_data)
 
@@ -103,8 +94,10 @@ class ChatServer(Server):
         self.active_connections[new_peer.username] = new_peer
         self.__online_users[new_peer.username] = new_peer
         self.__database.store_config(new_peer)
-        self.__logger.log(f"(USER ACTION):: LOGIN :: @{new_peer.username}")
-        self.__logger.log(f"currently online: {self.__online_users}")
+        StdoutLogger.user_action(new_peer.username, ACTIONS[message.action])
+        StdoutLogger.log(f"currently online: {self.__online_users.keys()}")
+
+        # validate the connection and make sure there is no duplicate username
 
         # if something fails when validating the connection, make sure to send the client a notification about it. Then delete their socket.
         # if new_peer is Exception:
@@ -119,19 +112,17 @@ class ChatServer(Server):
         # read the data out of the connection (the socket)
         connection: Pluggable = self.socket_to_pluggable[sock]
         data = connection.get_data()
+
         if data is not None:
             message = deserialize(data)
-            self.data_handler(message, connection)
+            return_message = self.data_handler(message, connection)
 
-        # data = user.get_data()
-        #         message = deserialize(data)
-        #         error = self.data_handler(message)
+        # An error occurred, so send data back to client.
+        if return_message is not None:
+            response = build_server_response(1, return_message)
+            connection.send_data(response)
 
-        #         if error is not None:
-        #             print(error)
-        #             error_message = build_message(ResponseCode.ERROR, new_peer)
-        #             runtime_error = user.send_data(error_message)
-        #             print(runtime_error)
+        return None
 
     def _get_table_of(self, username: str) -> tuple[Table, int] | None:
         t: table
@@ -242,28 +233,6 @@ class ChatServer(Server):
             # returns the ChatPeer object of corresponding username
             return self.__online_users[name]
 
-        def _connect() -> str | None:
-            peer_1: ChatPeer = self.__online_users[message.sender]
-            peer_2: ChatPeer
-
-            # check if the peer even exists in the database first:
-            peer_2_exists = message.params in self.__online_users.keys()
-            if peer_2_exists:
-                peer_2 = self.__online_users[message.params]
-            else:
-                return "peer not online"
-
-            # check if the peer is chatting with anyone else
-            if peer_2.get_state is State.CHATTING:
-                return "peer already chatting"
-
-            connected = self._connect_peer_to_peer(peer_1, peer_2)
-
-            if connected:
-                return None
-            else:
-                return "seating issue"
-
         def _disconnect() -> str | None:
             """
             disconnection from table, they no longer want to chat with each other.
@@ -320,7 +289,7 @@ class ChatServer(Server):
 
             return None
 
-        self.__logger.log(f"@{message.sender} requested #{message.action}")
+        StdoutLogger.user_action(message.sender, ACTIONS[message.action])
 
         # read the action
         match message.action:
@@ -329,28 +298,51 @@ class ChatServer(Server):
                 Client full system logout.
                 """
 
-                # disconnects the sender from their table first
-                # if self._is_seated(message.sender):
-                #     error = _disconnect()
-                # if error is not None:
-                #     return error
-
                 # internal database cleanup
                 self.__database.set_user_state(message.sender, State.OFFLINE)
 
                 # Delete sender from online users and socket connections
                 self.__online_users.pop(message.sender)
                 self.active_connections.pop(message.sender)
+
                 final = self.purge_links(connection)
                 final.socket.close()
 
-                self.__logger.log(f"@{message.sender} logged out")
+                return None
+
+            case 2:
+                """
+                Connect one peer to another
+                """
+
+                peer_1: ChatPeer = self.__online_users.get(message.sender)
+                peer_2: ChatPeer
+
+                # check if other user is even online
+                if message.params not in self.__online_users.keys():
+                    StdoutLogger.log(
+                        f"@{message.sender} attempted connection to non-existent user @{message.params}"
+                    )
+                    return f"@{message.params} is not online or does not exist"
+                else:
+                    peer_2 = self.__online_users.get(message.params)
+
+                # get state of other user
+                if peer_2.get_state() is State.CHATTING:
+                    StdoutLogger.log(
+                        f"@{message.sender} attempted connection to CHATTING user @{message.params}"
+                    )
+                    return f"@{message.params} is already chatting with another user"
+
+                # if online and not chatting
+
+                peer_1.socket.transmit()
 
                 return None
 
             case _:  # How did you even get here dawg
                 # send client error response
-                self.__logger.log("NO TAMPERING ALLOWED")
+                StdoutLogger.log("NO TAMPERING ALLOWED")
 
 
 def tabulate_guests(tables: list[Table]) -> list[ChatPeer]:

@@ -34,7 +34,9 @@ class Peer(Pluggable):
 
 
 class Server(Pluggable):
-    """Class that defines the 'network' component of what a server is. The thing that calls the shots."""
+    """
+    Class that defines the 'network' component of what a server is. The thing that calls the shots.
+    """
 
     def __init__(self, config: Config) -> None:
         self.config: Config = config
@@ -49,6 +51,9 @@ class Server(Pluggable):
         self.active_connections: dict[str, Pluggable] = {}
 
     def purge_links(self, connection: Pluggable) -> Pluggable:
+        """
+        Purges internal dictionary links that are used for cross referencing socket to peer and vice versa.
+        """
         sock = self.pluggable_to_socket.pop(connection)
         plug = self.socket_to_pluggable.pop(sock)
         return plug

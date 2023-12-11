@@ -18,6 +18,8 @@ class Database:
     def store_config(self, user: ChatPeer):
         self.__user_configs[user.username] = user.config
 
+    # def user_exists(self, username: str) -> bool:
+
     def get_config(self, username: str) -> Config:
         return self.__user_configs[username]
 

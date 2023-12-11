@@ -1,6 +1,14 @@
 from enum import Enum
 from shared.protobuf import Action, ResponseCode
 
+# Actions in int form
+ACTION_LOGIN = 0
+ACTION_LOGOUT = 1
+ACTION_CONNECT = 2
+ACTION_DISCONNECT = 3
+ACTION_SEARCH = 4
+ACTION_MESSAGE = 5
+
 
 # This must match the protobuf structure
 class Action(Enum):
@@ -10,6 +18,16 @@ class Action(Enum):
     DISCONNECT = Action.DISCONNECT
     SEARCH = Action.SEARCH
     MESSAGE = Action.MESSAGE
+
+
+ACTIONS: list[Action] = [
+    Action.LOGIN,
+    Action.LOGOUT,
+    Action.CONNECT,
+    Action.DISCONNECT,
+    Action.SEARCH,
+    Action.MESSAGE,
+]
 
 
 class ResponseCode(Enum):
