@@ -97,19 +97,14 @@ class ChatServer(Server):
         StdoutLogger.user_action(new_peer.username, ACTIONS[message.action])
         StdoutLogger.log(f"currently online: {self.__online_users.keys()}")
 
-        # validate the connection and make sure there is no duplicate username
+        response = build_server_response(0, "have a nice stay")
+        new_peer.send_data(response)
 
-        # if something fails when validating the connection, make sure to send the client a notification about it. Then delete their socket.
-        # if new_peer is Exception:
-        #     # message = build_message(ResponseCode.ERROR, new_peer)
-        #     # possible_new_client.transmit(message)
-        #     possible_new_client.close()
-        #     # del new_peer
-        # else:
-        # add the new client to the list of online users
+        # validate the connection and make sure there is no duplicate username
 
     def _handle_client_message(self, sock: socket.socket) -> None:
         # read the data out of the connection (the socket)
+        return_message: str | None
         connection: Pluggable = self.socket_to_pluggable[sock]
         data = connection.get_data()
 
@@ -335,6 +330,9 @@ class ChatServer(Server):
                     return f"@{message.params} is already chatting with another user"
 
                 # if online and not chatting
+
+                peer_1.set_state(State.CHATTING)
+                peer_2.set_state(State.CHATTING)
 
                 peer_1.socket.transmit()
 
