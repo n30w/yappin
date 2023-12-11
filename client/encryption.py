@@ -1,3 +1,7 @@
+<<<<<<< Updated upstream:client/encryption.py
+=======
+# from shared.files import *
+>>>>>>> Stashed changes:encrypt/encryption.py
 import random
 import string
 
