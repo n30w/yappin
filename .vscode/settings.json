@@ -3,11 +3,15 @@
         "bento",
         "betterproto",
         "chatserver",
+        "decryptor",
         "Encrypter",
+        "encryptor",
         "newkeys",
         "pkcs",
         "Protobuf",
-        "pubkey"
+        "pubkey",
+        "unpadder",
+        "urandom"
     ],
     "python.analysis.extraPaths": [
         "./shared",
