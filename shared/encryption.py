@@ -6,9 +6,11 @@ import rsa
 
 from shared.files import write, read
 
+N_BITS_OF_ENCRYPTION = 512
+
 
 class Key:
-    def __init__(self, key: rsa.PublicKey | rsa.PrivateKey) -> None:
+    def __init__(self, key: rsa.PublicKey | rsa.PrivateKey = None) -> None:
         self.key: rsa.PublicKey | rsa.PrivateKey = key
 
         # checks if a key has been saved to disk or not
@@ -24,6 +26,16 @@ class Key:
         # save_pkcs1 returns bytes, then .decode is a method of bytes class, decodes into UTF-8
         return self.key.save_pkcs1().decode("utf-8")
 
+    def deserialize(self, key: str) -> None:
+        """
+        Deserializes a key from utf-8 format into bytes which can be used to encrypt.
+        """
+
+        # converts the string to bytes
+        key_bytes = key.encode("utf-8")
+
+        self.key = rsa.PublicKey.load_pkcs1(key_bytes)
+
     def save(self, path: str) -> None:
         """saves key in string form to text file. If already saved, returns True."""
         write(self.serialize(), path)
@@ -35,9 +47,20 @@ class Key:
         return read(path)  # remove any \n
 
 
+def new_key_from_utf(key: str) -> Key:
+    k = deserialize_key(key)
+    return Key(k)
+
+
+def deserialize_key(key: str) -> rsa.PublicKey:
+    key_bytes = key.encode("utf-8")
+    return rsa.PublicKey.load_pkcs1(key_bytes)
+
+
 class Locksmith:
     def check_for_local_keys(self) -> bool:
         """Tries to find if there are any local keys already generated."""
+        pass
 
     @staticmethod
     def generate_keys() -> (Key, Key):
@@ -45,7 +68,7 @@ class Locksmith:
         Generates the public and private keys for the client.
         """
 
-        (rsa_gen_pub, rsa_gen_prv) = rsa.newkeys(256)
+        (rsa_gen_pub, rsa_gen_prv) = rsa.newkeys(N_BITS_OF_ENCRYPTION)
 
         public_key: Key = Key(rsa_gen_pub)
         private_key: Key = Key(rsa_gen_prv)

@@ -4,7 +4,8 @@ Physical application that is the client.
 
 import select
 import sys
-from shared.encryption import Key, Locksmith
+from client.database import Database
+from shared.encryption import Key, Locksmith, deserialize_key
 from shared.protobuf import Action, deserialize, serialize
 from shared.message import DataMessage
 from shared.net import *
@@ -18,7 +19,7 @@ A_SEARCH = 4
 A_MESSAGE = 5
 
 
-COMMAND_BANK: list[str] = ["quit", "chat", "commands"]
+COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch"]
 
 
 def sanitize_input(input: str) -> tuple[str, str]:
@@ -38,6 +39,14 @@ class Client(Pluggable):
     def __init__(self, config: Config, username: str) -> None:
         super().__init__(config)
         self.__username = username
+        self.__chat_mode: bool = (
+            False  # checks whether or not this client is connected and chatting
+        )
+
+        # person you're talking to
+        self.__peer: str = ""
+
+        self.__database: Database = Database()
 
         # Encryption
         self.__public_key: Key
@@ -47,39 +56,36 @@ class Client(Pluggable):
 
     def _handle_incoming_message(self, message: DataMessage) -> None:
         # server sent messages will always have params coming back AND have response code AND have sender that is "SERVER"
-        if message.sender == "SERVER":
+
+        sender = message.sender
+        res_code = message.response.response
+        res_comment = message.response.comment
+
+        if sender == "SERVER":
+            # If there is no error, then the server's response is a handshake from another peer.
+            if res_code == 0:
+                # check if there exists keys already from the sender. Key is now stored and ready to use.
+                self.__database.store_key(message)
+                self.__peer = message.params
+                sys_print(f"You are now chatting with: {self.__peer}")
+                print(self.__database.get_key(self.__peer).serialize())
+
             # Error has occurred
-            if message.response.response == 1:
-                print(f"[~] Uh oh! {message.response.comment}")
+            elif res_code == 1:
+                sys_print(f"Uh oh! {res_comment}")
 
-    def _match_commands(self, user_input: str) -> (bytes, bool):
-        exited = False
-        msg: bytes = None
-        make_message = from_sender(self.__username, self.__serialized_pub_key)
+        # In this case, someone is messaging this client. Display messages on the screen.
+        else:
+            # messages are stored encrypted
+            self.__database.store(message)
+            # decrypt message
+            messages: str = f"{sender}: "
 
-        if user_input[0] == "/":
-            command, params = sanitize_input(user_input)
-            if command not in COMMAND_BANK:
-                print("[~] Invalid command")
-            else:
-                match command:
-                    case "commands":
-                        print(f"Available commands:\n\t{COMMAND_BANK}")
+            for m in message.messages:
+                decrypted = Locksmith.decrypt(self.__private_key, m.body)
+                messages += decrypted + "\n"
 
-                    case "quit":
-                        print("[~] Quitting...")
-                        exited = True
-                        msg = make_message("", "", A_LOGOUT)
-                        message_ready = True
-
-                    case "chat":
-                        print(f"[~] Attempting connection with {params}...")
-                        msg = make_message(params, "", A_CONNECT)
-
-                    case _:
-                        print("[~] Invalid command")
-
-        return msg, exited
+            print(messages)
 
     def run(self):
         make_message = from_sender(self.__username, self.__serialized_pub_key)
@@ -93,10 +99,12 @@ class Client(Pluggable):
 
         # Initial login handshake
         self.socket.connect()
-        # msg = make_message("hello", "params", A_MESSAGE)
-        msg = make_message("hello", "params", A_LOGIN)
+        msg = make_message(to=None, text="", action=A_LOGIN)
         self.send_data(msg)
+
+        # HANDLE THIS: In the event that the username is invalid, make sure to exit gracefully
         rec = deserialize(self.get_data())
+
         sys_print(f"Connected successfully! MOTD: {rec.response.comment}")
 
         try:
@@ -142,18 +150,48 @@ class Client(Pluggable):
                                     case "quit":
                                         sys_print("Closing yappin'")
                                         exit = True
-                                        msg = make_message("", "", A_LOGOUT)
+                                        msg = make_message(
+                                            to=None,
+                                            params="",
+                                            text="bye",
+                                            action=A_LOGOUT,
+                                        )
                                         message_ready = True
 
                                     case "chat":
                                         sys_print(
                                             f"Attempting connection with {params}"
                                         )
-                                        msg = make_message(params, "", A_CONNECT)
+                                        msg = make_message(
+                                            params=params, text="", action=A_CONNECT
+                                        )
                                         message_ready = True
+
+                                    case "switch":
+                                        pass
 
                                     case _:
                                         sys_print("invalid command")
+
+                        # this client is chatting with someone
+                        else:
+                            if self.__chat_mode:
+                                # package the message
+                                # transmit it to server
+
+                                receiver: str = self.__peer
+
+                                sender_pub_key: Key = self.__database.get_key(receiver)
+
+                                message_body = Locksmith.encrypt(
+                                    sender_pub_key, user_input
+                                )
+
+                                msg = make_message(
+                                    to=receiver, text=message_body, action=A_MESSAGE
+                                )
+
+                                message_ready = True
 
                 if message_ready:
                     self.send_data(msg)
@@ -162,7 +200,8 @@ class Client(Pluggable):
             sys_print("Yappin' closed via KeyboardInterrupt")
 
             # send quit code to server!
-            msg = make_message("", "", A_LOGOUT)
+            # msg = make_message("", "", A_LOGOUT)
+            msg = make_message(to=None, params="", text="bye", action=A_LOGOUT)
             self.send_data(msg)
 
         except Exception as e:
@@ -181,11 +220,21 @@ def from_sender(sender: str, pub_key: str):
     dm = DataMessage()
     dm.sender = sender
 
-    def create(params: str, text: str, action: int) -> bytes:
+    def create(
+        to: str = None, params: str = "", text: str = None, action: int = 9
+    ) -> bytes:
         dm.action = action
         dm.params = params
-        dm.messages.append(text.encode())
         dm.pubkey = pub_key
+
+        if to is not None:
+            dm.messages[0].body = text
+            dm.messages[0].sender = sender
+            dm.messages[0].receiver = to
+            dm.messages[0].date = ""
+        else:
+            dm.messages.append(text.encode())
+
         return dm.SerializeToString()
 
     return create

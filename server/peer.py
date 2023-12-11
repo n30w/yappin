@@ -8,10 +8,10 @@ from shared.chat_types import *
 
 
 class ChatPeer(Peer):
-    def __init__(self, config: Config, username: str, key: Key) -> None:
+    def __init__(self, config: Config, username: str, key: str) -> None:
         super().__init__(config)
         self.username: str = username
-        self.key: Key = key
+        self.Key: str = key
 
     def consume(message: bytes):
         # Turns the message back into protobuf serialization format

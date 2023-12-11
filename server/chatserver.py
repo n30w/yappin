@@ -90,10 +90,12 @@ class ChatServer(Server):
 
         # creates a new ChatPeer from the new_client if username is valid
         # new_peer: ChatPeer = self._attempt_client_login(possible_new_client)
+        # PLEASE PULL COMPLEXITY DOWNWARD
         self.link_socket_and_plug(new_peer.get_socket(), new_peer)
         self.active_connections[new_peer.username] = new_peer
         self.__online_users[new_peer.username] = new_peer
         self.__database.store_config(new_peer)
+
         StdoutLogger.user_action(new_peer.username, ACTIONS[message.action])
         StdoutLogger.log(f"currently online: {self.__online_users.keys()}")
 
@@ -103,9 +105,13 @@ class ChatServer(Server):
         # validate the connection and make sure there is no duplicate username
 
     def _handle_client_message(self, sock: socket.socket) -> None:
-        # read the data out of the connection (the socket)
+        # preliminary return message instantiation.
         return_message: str | None
-        connection: Pluggable = self.socket_to_pluggable[sock]
+
+        # retrieve the ChatPeer object.
+        connection: ChatPeer = self.socket_to_pluggable[sock]
+
+        # read the data out of the connection (the socket)
         data = connection.get_data()
 
         if data is not None:
@@ -288,6 +294,7 @@ class ChatServer(Server):
 
         # read the action
         match message.action:
+            # LOGOUT
             case 1:  # I don't know why I can't use Action
                 """
                 Client full system logout.
@@ -305,6 +312,7 @@ class ChatServer(Server):
 
                 return None
 
+            # CONNECT
             case 2:
                 """
                 Connect one peer to another
@@ -313,7 +321,9 @@ class ChatServer(Server):
                 peer_1: ChatPeer = self.__online_users.get(message.sender)
                 peer_2: ChatPeer
 
-                # check if other user is even online
+                """
+                First check if the other user is even online
+                """
                 if message.params not in self.__online_users.keys():
                     StdoutLogger.log(
                         f"@{message.sender} attempted connection to non-existent user @{message.params}"
@@ -322,21 +332,43 @@ class ChatServer(Server):
                 else:
                     peer_2 = self.__online_users.get(message.params)
 
-                # get state of other user
+                """
+                Now check if the other user is engaged with someone else
+                """
                 if peer_2.get_state() is State.CHATTING:
                     StdoutLogger.log(
                         f"@{message.sender} attempted connection to CHATTING user @{message.params}"
                     )
                     return f"@{message.params} is already chatting with another user"
 
-                # if online and not chatting
+                """
+                If both of the above conditions do not raise an error, continue with handshake
+                """
+                peer_1_key_res = build_server_response(
+                    res_code=0,
+                    comment="key handshake",
+                    pub_key=peer_1.Key,
+                    params=peer_1.username,
+                )
+
+                peer_2_key_res = build_server_response(
+                    res_code=0,
+                    comment="key handshake",
+                    pub_key=peer_2.Key,
+                    params=peer_2.username,
+                )
+
+                peer_1.socket.transmit(peer_2_key_res)
+                peer_2.socket.transmit(peer_1_key_res)
 
                 peer_1.set_state(State.CHATTING)
                 peer_2.set_state(State.CHATTING)
 
-                peer_1.socket.transmit()
-
                 return None
+
+            # MESSAGE
+            case 5:
+                pass
 
             case _:  # How did you even get here dawg
                 # send client error response
