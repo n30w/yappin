@@ -37,5 +37,5 @@ message DataMessage {
     repeated ChatMessage messages = 3; // UserMessages returned on search query
     string sender = 4; // username of the sender
     string pubkey = 5; // public key of the sender
-    string params = 6; // command parameters, for example, user in /connect (user)
+    string params = 6; // command parameters, for example, user in /connect (user) OR expresses error from server.
 }

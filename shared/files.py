@@ -1,4 +1,4 @@
-from types import T
+from shared.chat_types import T
 
 """File handling shenanigans"""
 

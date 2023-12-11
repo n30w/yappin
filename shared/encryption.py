@@ -21,6 +21,9 @@ class Key:
         self.save_path: str = ""
 
     def serialize(self) -> str:
+        """
+        Creates a serialized version of the key, can be used to transmit.
+        """
         # save_pkcs1 returns bytes, then .decode is a method of bytes class, decodes into UTF-8
         return self.key.save_pkcs1().decode("utf-8")
 

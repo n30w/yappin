@@ -7,6 +7,18 @@ includes:
     dir: ./shared
 
 tasks:
+  server:
+    cmds:
+      - python3 ./start_server.py
+  client:
+    cmds:
+      - python3 ./start_client.py
+  neo:
+    cmds:
+      - python3 ./start_client.py -n "neo"
+  bento:
+    cmds:
+      - python3 ./start_client.py -n "bento"
   build:
     cmds:
       - task proto:gen
