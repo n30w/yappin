@@ -7,7 +7,7 @@ import sys
 from client.database import Database
 from shared.encryption import Key, Locksmith, deserialize_key
 from shared.protobuf import Action, deserialize, serialize
-from shared.message import DataMessage
+from shared.message import DataMessage, DataMessageChatMessage
 from shared.net import *
 from shared import *
 
@@ -79,17 +79,19 @@ class Client(Pluggable):
                 sys_print(f"Uh oh! {res_comment}")
                 if message.params == "DISCONNECT":
                     self.__chat_mode = False
+                    self.__peer = None
 
         # In this case, someone is messaging this client. Display messages on the screen.
         else:
             # messages are stored encrypted
-            self.__database.store(message)
+            self.__database.store_message(message)
             # decrypt message
-            messages: str = f"{sender}: "
+            messages: str = f"[@{sender}]: "
 
             for m in message.messages:
-                decrypted = Locksmith.decrypt(self.__private_key, m.body)
-                messages += decrypted + "\n"
+                # decrypted = Locksmith.decrypt(self.__private_key, m.body)
+                # messages += decrypted + "\n"
+                messages += m.body
 
             print(messages)
 
@@ -97,6 +99,9 @@ class Client(Pluggable):
         exited: bool = False
         message_ready: bool = False
         msg: bytes = None
+
+        if len(user_input) == 0:
+            return exited, message_ready, msg
 
         if user_input[0] == "/":
             command, args = sanitize_input(user_input)
@@ -138,6 +143,7 @@ class Client(Pluggable):
                         to=None, params=self.__peer, text="", action=A_DISCONNECT
                     )
                     self.__chat_mode = False
+                    self.__peer = None
                     message_ready = True
 
                 case _:
@@ -166,8 +172,6 @@ class Client(Pluggable):
         try:
             while not exit:
                 message: bytes
-                command: str
-                params: str
                 message_ready: bool = False
 
                 read, _write, _error = select.select(
@@ -190,21 +194,24 @@ class Client(Pluggable):
                     if source is sys.stdin:
                         user_input = input()
                         exit, message_ready, message = self._parse_command(user_input)
-                        # if self.__chat_mode:
-                        #     # package the message
-                        #     # transmit it to server
 
-                        #     receiver: str = self.__peer
+                        if self.__chat_mode:
+                            receiver: str = self.__peer
 
-                        #     sender_pub_key: Key = self.__database.get_key(receiver)
+                            # sender_pub_key: Key = self.__database.get_key(receiver)
 
-                        #     message_body = Locksmith.encrypt(sender_pub_key, user_input)
+                            # message_body = Locksmith.encrypt(
+                            #     sender_pub_key, user_input.encode("utf-8")
+                            # )
 
-                        #     msg = self.make_message(
-                        #         to=receiver, text=message_body, action=A_MESSAGE
-                        #     )
-
-                        #     message_ready = True
+                            # msg = self.make_message(
+                            #     to=receiver, text=message_body, action=A_MESSAGE
+                            # )
+                            msg = self.make_message(
+                                to=receiver, text=user_input, action=A_MESSAGE
+                            )
+                            # message_ready = True
+                            self.send_data(msg)
 
                 if message_ready:
                     self.send_data(message)
@@ -217,7 +224,13 @@ class Client(Pluggable):
             msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
             self.send_data(msg)
 
+        except ConnectionResetError:
+            print("server died.")
+
         except Exception as e:
+            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            self.send_data(msg)
+
             print(f"Error: {e}")
             traceback.print_exc()
 
@@ -243,13 +256,14 @@ def from_sender(sender: str, pub_key: str):
         dm.params = params
         dm.pubkey = pub_key
 
-        if to is not None:
-            dm.messages[0].body = text
-            dm.messages[0].sender = sender
-            dm.messages[0].receiver = to
-            dm.messages[0].date = ""
-        else:
-            dm.messages.append(text.encode())
+        new_msg: DataMessageChatMessage = DataMessageChatMessage(
+            sender=sender, receiver=to, body=text, date=""
+        )
+
+        # for some reason, doing all of the above code makes populate with 2 empty DataMessageChatMessage objects in the messages list. This clears it, then appends the real one to it.
+        dm.messages.clear()
+        dm.messages.append(new_msg)
+        # print(dm.messages)
 
         return dm.SerializeToString()
 

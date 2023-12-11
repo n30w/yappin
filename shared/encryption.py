@@ -80,7 +80,10 @@ class Locksmith:
         """
         Takes a non-encrypted message, then encrypts it, then returns the encrypted string.
         """
-        return rsa.encrypt(message.encode(), public_key.key).decode("utf-8")
+        utf_bytes = message.encode("utf-8")
+        encrypted_bytes = rsa.encrypt(utf_bytes, public_key.key)
+        decoded = encrypted_bytes.decode("utf-8")
+        return decoded
 
     @staticmethod
     def decrypt(private_key: Key, message: str) -> str:

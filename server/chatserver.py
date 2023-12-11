@@ -110,7 +110,7 @@ class ChatServer(Server):
     def _handle_client_message(
         self, sock: socket.socket, return_message: str | None
     ) -> None:
-        # retrieve the ChatPeer object.
+        # retrieve the ChatPeer object, given a socket
         connection: ChatPeer = self.socket_to_pluggable[sock]
 
         # read the data out of the connection (the socket)
@@ -404,7 +404,10 @@ class ChatServer(Server):
                 """
                 Forwards a message to a recipient given the message object.
                 """
+                print(message.sender)
+                print(message.messages[0])
                 recipient_name = message.messages[0].receiver
+                print(recipient_name)
                 recipient: ChatPeer = self.__online_users.get(recipient_name)
 
                 data = serialize(message)
