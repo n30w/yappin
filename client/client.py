@@ -245,25 +245,20 @@ def sys_print(text: str) -> None:
     print(f"[~] {text}")
 
 
+# functional builder pattern to send a message
 def from_sender(sender: str, pub_key: str):
-    dm = DataMessage()
-    dm.sender = sender
-
     def create(
         to: str = None, params: str = "", text: str = None, action: int = 9
     ) -> bytes:
-        dm.action = action
-        dm.params = params
-        dm.pubkey = pub_key
-
-        new_msg: DataMessageChatMessage = DataMessageChatMessage(
-            sender=sender, receiver=to, body=text, date=""
+        dm = DataMessage(
+            sender=sender,
+            action=action,
+            params=params,
+            pubkey=pub_key,
+            messages=DataMessageChatMessage(
+                sender=sender, receiver=to, body=text, date=""
+            ),
         )
-
-        # for some reason, doing all of the above code makes populate with 2 empty DataMessageChatMessage objects in the messages list. This clears it, then appends the real one to it.
-        dm.messages.clear()
-        dm.messages.append(new_msg)
-        # print(dm.messages)
 
         return dm.SerializeToString()
 

@@ -404,10 +404,7 @@ class ChatServer(Server):
                 """
                 Forwards a message to a recipient given the message object.
                 """
-                print(message.sender)
-                print(message.messages[0])
                 recipient_name = message.messages[0].receiver
-                print(recipient_name)
                 recipient: ChatPeer = self.__online_users.get(recipient_name)
 
                 data = serialize(message)
