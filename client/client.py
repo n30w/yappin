@@ -19,7 +19,7 @@ A_SEARCH = 4
 A_MESSAGE = 5
 
 
-COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch"]
+COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch", "leave"]
 
 
 def sanitize_input(input: str) -> tuple[str, str]:
@@ -54,6 +54,9 @@ class Client(Pluggable):
         self.__public_key, self.__private_key = Locksmith.generate_keys()
         self.__serialized_pub_key: str = self.__public_key.serialize()
 
+        # message creation callback
+        self.make_message = from_sender(self.__username, self.__serialized_pub_key)
+
     def _handle_incoming_message(self, message: DataMessage) -> None:
         # server sent messages will always have params coming back AND have response code AND have sender that is "SERVER"
 
@@ -67,12 +70,15 @@ class Client(Pluggable):
                 # check if there exists keys already from the sender. Key is now stored and ready to use.
                 self.__database.store_key(message)
                 self.__peer = message.params
-                sys_print(f"You are now chatting with: {self.__peer}")
-                print(self.__database.get_key(self.__peer).serialize())
+                sys_print(f"You are now chatting with @{self.__peer}")
+                self.__chat_mode = True
+                # print(self.__database.get_key(self.__peer).serialize())
 
             # Error has occurred
             elif res_code == 1:
                 sys_print(f"Uh oh! {res_comment}")
+                if message.params == "DISCONNECT":
+                    self.__chat_mode = False
 
         # In this case, someone is messaging this client. Display messages on the screen.
         else:
@@ -87,9 +93,59 @@ class Client(Pluggable):
 
             print(messages)
 
-    def run(self):
-        make_message = from_sender(self.__username, self.__serialized_pub_key)
+    def _parse_command(self, user_input: str) -> (bool, bool, bytes):
+        exited: bool = False
+        message_ready: bool = False
+        msg: bytes = None
 
+        if user_input[0] == "/":
+            command, args = sanitize_input(user_input)
+            if command not in COMMAND_BANK:
+                sys_print("Invalid command. To see commands, type /commands")
+                return exited, message_ready, msg
+
+            match command:
+                case "commands":
+                    sys_print(f"Available commands:\n\t{COMMAND_BANK}")
+
+                case "quit":
+                    sys_print("Closing yappin'")
+                    exited = True
+                    msg = self.make_message(
+                        to=None,
+                        params="",
+                        text="bye",
+                        action=A_LOGOUT,
+                    )
+                    message_ready = True
+
+                case "chat":
+                    # you cannot chat with yourself
+                    if args == self.__username:
+                        sys_print("you cannot chat with yourself...")
+                        message_ready = False
+                    elif args != self.__username:
+                        sys_print(f"Attempting connection to @{args}")
+                        msg = self.make_message(params=args, text="", action=A_CONNECT)
+                        message_ready = True
+
+                case "switch":
+                    pass
+
+                case "leave":
+                    sys_print(f"leaving chat with @{self.__peer}")
+                    msg = self.make_message(
+                        to=None, params=self.__peer, text="", action=A_DISCONNECT
+                    )
+                    self.__chat_mode = False
+                    message_ready = True
+
+                case _:
+                    sys_print("invalid command")
+
+        return exited, message_ready, msg
+
+    def run(self):
         exit = False
 
         print("\n~================================================~\n")
@@ -99,7 +155,7 @@ class Client(Pluggable):
 
         # Initial login handshake
         self.socket.connect()
-        msg = make_message(to=None, text="", action=A_LOGIN)
+        msg = self.make_message(to=None, text="", action=A_LOGIN)
         self.send_data(msg)
 
         # HANDLE THIS: In the event that the username is invalid, make sure to exit gracefully
@@ -133,75 +189,32 @@ class Client(Pluggable):
                     """
                     if source is sys.stdin:
                         user_input = input()
+                        exit, message_ready, message = self._parse_command(user_input)
+                        # if self.__chat_mode:
+                        #     # package the message
+                        #     # transmit it to server
 
-                        if user_input[0] == "/":
-                            command, params = sanitize_input(user_input)
-                            if command not in COMMAND_BANK:
-                                sys_print(
-                                    "Invalid command. To see commands, type /commands"
-                                )
-                            else:
-                                match command:
-                                    case "commands":
-                                        sys_print(
-                                            f"Available commands:\n\t{COMMAND_BANK}"
-                                        )
+                        #     receiver: str = self.__peer
 
-                                    case "quit":
-                                        sys_print("Closing yappin'")
-                                        exit = True
-                                        msg = make_message(
-                                            to=None,
-                                            params="",
-                                            text="bye",
-                                            action=A_LOGOUT,
-                                        )
-                                        message_ready = True
+                        #     sender_pub_key: Key = self.__database.get_key(receiver)
 
-                                    case "chat":
-                                        sys_print(
-                                            f"Attempting connection with {params}"
-                                        )
-                                        msg = make_message(
-                                            params=params, text="", action=A_CONNECT
-                                        )
-                                        message_ready = True
+                        #     message_body = Locksmith.encrypt(sender_pub_key, user_input)
 
-                                    case "switch":
-                                        pass
+                        #     msg = self.make_message(
+                        #         to=receiver, text=message_body, action=A_MESSAGE
+                        #     )
 
-                                    case _:
-                                        sys_print("invalid command")
-
-                        # this client is chatting with someone
-                        else:
-                            if self.__chat_mode:
-                                # package the message
-                                # transmit it to server
-
-                                receiver: str = self.__peer
-
-                                sender_pub_key: Key = self.__database.get_key(receiver)
-
-                                message_body = Locksmith.encrypt(
-                                    sender_pub_key, user_input
-                                )
-
-                                msg = make_message(
-                                    to=receiver, text=message_body, action=A_MESSAGE
-                                )
-
-                                message_ready = True
+                        #     message_ready = True
 
                 if message_ready:
-                    self.send_data(msg)
+                    self.send_data(message)
 
         except KeyboardInterrupt:
             sys_print("Yappin' closed via KeyboardInterrupt")
 
             # send quit code to server!
             # msg = make_message("", "", A_LOGOUT)
-            msg = make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
             self.send_data(msg)
 
         except Exception as e:
@@ -209,6 +222,9 @@ class Client(Pluggable):
             traceback.print_exc()
 
         finally:
+            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            self.send_data(msg)
+
             self.socket.close()
 
 

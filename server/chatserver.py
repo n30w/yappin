@@ -24,11 +24,16 @@ class ChatServer(Server):
         self.socket.bind()
         self.socket.listen()
 
+        return_message: str | None = None
+
         """ IMPORTANT! Link own socket to socket and plug """
         self.active_connections["my_addr"] = self
         self.link_socket_and_plug(self.get_socket(), self)
 
-        StdoutLogger.log(f"Server running @{self.config.BINDING}")
+        print("~==========================================================~")
+        print(f"\tyappin' chat server\t@{self.config.BINDING}")
+        print("~==========================================================~")
+        StdoutLogger.log(f"Server started...")
 
         try:
             while True:
@@ -43,15 +48,13 @@ class ChatServer(Server):
                         """
                         In this case, a new client wants to connect. Check if their connection is valid. If so, let them in and make a new user. If not, they are not allowed to connect. Delete their socket. Send a transmitted message back. NEW CLIENTS ARE ALWAYS A LOGIN REQUEST!
                         """
-
                         self._handle_incoming_connection(sock)
 
                     else:
                         """
                         Handle activity from other sockets that have activity.
                         """
-
-                        self._handle_client_message(sock)
+                        self._handle_client_message(sock, return_message)
 
         except KeyboardInterrupt:
             # Close all sockets
@@ -104,10 +107,9 @@ class ChatServer(Server):
 
         # validate the connection and make sure there is no duplicate username
 
-    def _handle_client_message(self, sock: socket.socket) -> None:
-        # preliminary return message instantiation.
-        return_message: str | None
-
+    def _handle_client_message(
+        self, sock: socket.socket, return_message: str | None
+    ) -> None:
         # retrieve the ChatPeer object.
         connection: ChatPeer = self.socket_to_pluggable[sock]
 
@@ -224,7 +226,7 @@ class ChatServer(Server):
 
     def data_handler(self, message: DataMessage, connection: Pluggable) -> str | None:
         """
-        Handles messages to the server. Incoming data bytes SHOULD BE ALREADY deserialized when being consumed by this function.
+        Handles messages to the server. Incoming data bytes SHOULD BE ALREADY deserialized when being consumed by this function. The string returned from this method is information about an error, if there are any that occur. It is sent to the client.
         """
 
         # indicates whether an operation succeeded or not
@@ -234,32 +236,27 @@ class ChatServer(Server):
             # returns the ChatPeer object of corresponding username
             return self.__online_users[name]
 
-        def _disconnect() -> str | None:
+        def _disconnect(peer_1: ChatPeer) -> None:
             """
             disconnection from table, they no longer want to chat with each other.
             """
 
-            table: Table
-            index: int
+            peer_2_username: str
 
-            table, index = self._get_table_of(message.sender)
+            for t in self.__tables:
+                if peer_1.username in t.get_seated_info():
+                    peer_2_username = t.get_peer(peer_1.username)
+                    del t  # might break sh!t
+                    break
 
-            if table is None:
-                return "not seated at a table"
+            peer_2: ChatPeer = self.__online_users.get(peer_2_username)
+            peer_2.set_state(State.CONNECTED)
 
-            seated: list[ChatPeer] = table.seats.values()
+            response = build_server_response(
+                res_code=1, comment=f"{message.sender} has left", params="DISCONNECT"
+            )
 
-            # Destroy table
-            del self.__tables[index]
-
-            # reset peer states
-            # self.__database.set_user_state(seated[0], State.CONNECTED)
-            # self.__database.set_user_state(seated[1], State.CONNECTED)
-
-            for peer in seated:
-                peer.set_state(State.CONNECTED)
-
-            return None
+            peer_2.send_data(response)
 
         def _message() -> str | None:
             peer_1 = self.__online_users[message.sender]
@@ -300,6 +297,11 @@ class ChatServer(Server):
                 Client full system logout.
                 """
 
+                peer_1: ChatPeer = self.__online_users.get(message.sender)
+
+                if peer_1.get_state() == State.CHATTING:
+                    _disconnect(peer_1)
+
                 # internal database cleanup
                 self.__database.set_user_state(message.sender, State.OFFLINE)
 
@@ -307,6 +309,7 @@ class ChatServer(Server):
                 self.__online_users.pop(message.sender)
                 self.active_connections.pop(message.sender)
 
+                # delete internal links between socket dictionary and peer dictionary
                 final = self.purge_links(connection)
                 final.socket.close()
 
@@ -318,11 +321,20 @@ class ChatServer(Server):
                 Connect one peer to another
                 """
 
+                table: Table = Table()
+
                 peer_1: ChatPeer = self.__online_users.get(message.sender)
                 peer_2: ChatPeer
 
                 """
-                First check if the other user is even online
+                First, check if the "other user" is yourself. You cannot chat with yourself.
+                """
+                if message.params == peer_1.username:
+                    StdoutLogger.log(f"@{message.sender} attempted connection to self")
+                    return f"you cannot chat with yourself"
+
+                """
+                Second, check if the other user is even online
                 """
                 if message.params not in self.__online_users.keys():
                     StdoutLogger.log(
@@ -344,6 +356,10 @@ class ChatServer(Server):
                 """
                 If both of the above conditions do not raise an error, continue with handshake
                 """
+
+                table.seat(peer_1)
+                table.seat(peer_2)
+
                 peer_1_key_res = build_server_response(
                     res_code=0,
                     comment="key handshake",
@@ -364,28 +380,41 @@ class ChatServer(Server):
                 peer_1.set_state(State.CHATTING)
                 peer_2.set_state(State.CHATTING)
 
+                self.__tables.append(table)
+
+                return None
+
+            # DISCONNECT
+            case 3:
+                peer_1: ChatPeer = self.__online_users.get(message.sender)
+
+                # If bozo is chatting, they no longer are
+                if peer_1.get_state() == State.CHATTING:
+                    peer_1.set_state(State.CONNECTED)
+                else:
+                    return f"unable to leave: you are not chatting with anyone"
+
+                # make their chat partner also no longer chatting
+                _disconnect(peer_1)
+
                 return None
 
             # MESSAGE
             case 5:
-                pass
+                """
+                Forwards a message to a recipient given the message object.
+                """
+                recipient_name = message.messages[0].receiver
+                recipient: ChatPeer = self.__online_users.get(recipient_name)
+
+                data = serialize(message)
+                recipient.send_data(data)
+
+                return None
 
             case _:  # How did you even get here dawg
                 # send client error response
                 StdoutLogger.log("NO TAMPERING ALLOWED")
-
-
-def tabulate_guests(tables: list[Table]) -> list[ChatPeer]:
-    """
-    Returns the list of all peers that are logged into the server.
-    """
-
-    peers: list[ChatPeer] = []
-
-    for table in tables:
-        peers.extend(table.seats)
-
-    return peers
 
 
 def create_list(of: list[T], by: certain_attribute) -> list[T]:
