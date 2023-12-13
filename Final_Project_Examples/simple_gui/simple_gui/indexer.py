@@ -7,19 +7,18 @@ Created on Sat Jul  5 11:38:58 2014
 import pickle
 
 class Index:
-    def __init__(self, name, password):
+    def __init__(self, name):
         self.name = name
-        self.password = password
         self.msgs = [];
         self.index = {}
         self.total_msgs = 0
         self.total_words = 0
     
-    def get_password(self):
+    """def get_password(self):
         return self.password
     
     def set_password(self, newpassword):
-        self.password = newpassword
+        self.password = newpassword"""
         
     def get_total_words(self):
         return self.total_words
@@ -57,7 +56,7 @@ class Index:
 
 class PIndex(Index):
     def __init__(self, name):
-        super().__init__(name, '')
+        super().__init__(name)
         roman_int_f = open('roman.txt.pk', 'rb')
         self.int2roman = pickle.load(roman_int_f)
         roman_int_f.close()

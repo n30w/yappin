@@ -14,7 +14,11 @@ import json
 import pickle as pkl
 from chat_utils import *
 import chat_group as grp
-import hashlib
+
+from tkinter import messagebox
+
+import ast
+
 
 class Server:
     def __init__(self):
@@ -35,6 +39,7 @@ class Server:
         # self.sonnet = pkl.load(self.sonnet_f)
         # self.sonnet_f.close()
         self.sonnet = indexer.PIndex("AllSonnets.txt")
+        
     def new_client(self, sock):
         #add to all sockets and to new clients
         print('new client...')
@@ -47,44 +52,49 @@ class Server:
         try:
             msg = json.loads(myrecv(sock))
             print("login:", msg)
+                        
             if len(msg) > 0:
-
+                # accessing and storing password of the user
                 if msg["action"] == "login":
                     name = msg["name"]
-                    password = msg["password"]                               
-                    # NEW USER ENTER THE CHAT SERVER
+                    password = msg["password"]
+                    
+                    """ ====== Opens the userAccountBank.txt file and sets the data into accBank ======"""
+                    with open("userAccountBank.txt", 'r') as file: 
+                        accBank = ast.literal_eval(file.read())
+                                           
+                                           
+                    """ ======= Checks if the PASSWORD is correct with the username ======="""
+                    if name in accBank and accBank[name] != password:
+                        mysend(sock, json.dumps({"action": "login", "status": "wrong password"}))
+                        return   
+                    else:
+                        mysend(sock, json.dumps({"action": "login", "status": "success"}))   
+                        print("Login successful!")   
+                    
+                                            
                     if self.group.is_member(name) != True:
-                        #self.group.user_pwd(name, pwd)
                         #move socket from new clients list to logged clients
                         self.new_clients.remove(sock)
+                        
                         #add into the name to sock mapping
                         self.logged_name2sock[name] = sock
                         self.logged_sock2name[sock] = name
                         #load chat history of that user
+                        
+                        """====== if USERNAME IS NOT IN SERVER  ======"""
                         if name not in self.indices.keys():
                             try:
                                 self.indices[name]=pkl.load(open(name+'.idx','rb'))
-                                if password != self.indices[name].get_password():
-                                    mysend(sock, json.dumps({"action":"login", "status":"wrong password"}))
-                                    print(name + ' entered wrong password')
-                                else:
-                                    mysend(sock, json.dumps({"action":"login", "status":"ok"}))
-                                    print(name + ' logged in password')
-                                    self.group.join(name)
                                 
                             except IOError: #chat index does not exist, then create one
-                                self.indices[name] = indexer.Index(name, password)
-                                print(self.indices[name])
-                                mysend(sock, json.dumps({"action":"login", "status":"ok"})) 
-                                print(name + ' logged in IOERROR')
-                                self.group.join(name)
-                                print('new user, added ' + name + '.idx')
-                                
-                        #print(name + ' logged in here')
-                        #self.group.join(name)
-                        #mysend(sock, json.dumps({"action":"login", "status":"ok"}))
+                                self.indices[name] = indexer.Index(name)
+                            
+                            
+                        self.group.join(name)
+                        mysend(sock, json.dumps({"action":"login", "status":"success"}))
+                    
                         
-                    # EXISTING USERNAME IN THE CHAT SERVER
                     else: #a client under this name has already logged in
                         mysend(sock, json.dumps({"action":"login", "status":"duplicate"}))
                         print(name + ' duplicate login attempt')
@@ -99,7 +109,7 @@ class Server:
         #remove sock from all lists
         name = self.logged_sock2name[sock]
         pkl.dump(self.indices[name], open(name + '.idx','wb'))
-        #del self.indices[name]
+        del self.indices[name]
         del self.logged_name2sock[name]
         del self.logged_sock2name[sock]
         self.all_sockets.remove(sock)
@@ -139,6 +149,9 @@ class Server:
 #==============================================================================
             elif msg["action"] == "exchange":
                 from_name = self.logged_sock2name[from_sock]
+                
+                
+                
                 the_guys = self.group.list_me(from_name)
                 #said = msg["from"]+msg["message"]
                 said2 = text_proc(msg["message"], from_name)
@@ -152,6 +165,7 @@ class Server:
 #==============================================================================
             elif msg["action"] == "list":
                 from_name = self.logged_sock2name[from_sock]
+                
                 msg = self.group.list_all()
                 mysend(from_sock, json.dumps({"action":"list", "results":msg}))
 #==============================================================================
@@ -159,10 +173,13 @@ class Server:
 #==============================================================================
             elif msg["action"] == "poem":
                 poem_indx = int(msg["target"])
+                
                 from_name = self.logged_sock2name[from_sock]
                 print(from_name + ' asks for ', poem_indx)
+                
                 poem = self.sonnet.get_poem(poem_indx)
                 poem = '\n'.join(poem).strip()
+                
                 print('here:\n', poem)
                 mysend(from_sock, json.dumps({"action":"poem", "results":poem}))
 #==============================================================================

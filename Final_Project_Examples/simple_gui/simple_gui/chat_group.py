@@ -115,8 +115,13 @@ class Group:
 
 if __name__ == "__main__":
     g = Group()
+    print('is member', g.is_member('a'))
+    
     g.join('a')
     g.join('b')
+    
+    print('g.member', g.members)
+    
     print(g.list_all())
     g.list_all2('a')
     g.connect('a', 'b')

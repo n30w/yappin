@@ -110,11 +110,11 @@ class ClientSM:
                 peer_msg = json.loads(peer_msg)
                 if peer_msg["action"] == "connect":
                     self.peer = peer_msg["from"]
-                    self.out_msg += 'Request from ' + self.peer + '\n'
-                    self.out_msg += 'You are connected with ' + self.peer
-                    self.out_msg += '. Chat away!\n\n'
-                    self.out_msg += '------------------------------------\n'
+                    
                     self.state = S_CHATTING
+                    self.out_msg += 'Request from ' + self.peer + '\n'
+                    self.out_msg += 'You are connected with ' + self.peer + '. Chat away!\n\n'
+                    self.out_msg += '------------------------------------\n'
 
 #==============================================================================
 # Start chatting, 'bye' for quit
@@ -127,8 +127,10 @@ class ClientSM:
                     self.disconnect()
                     self.state = S_LOGGEDIN
                     self.peer = ''
+                    
             if len(peer_msg) > 0:    # peer's stuff, coming in
                 peer_msg = json.loads(peer_msg)
+                
                 if peer_msg["action"] == "connect":
                     self.out_msg += "(" + peer_msg["from"] + " joined)\n"
                 elif peer_msg["action"] == "disconnect":
