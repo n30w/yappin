@@ -258,35 +258,6 @@ class ChatServer(Server):
 
             peer_2.send_data(response)
 
-        def _message() -> str | None:
-            peer_1 = self.__online_users[message.sender]
-
-            t: table
-            # check if bozo is seated
-            seated: bool = False
-
-            for table in self.__tables:
-                if peer_1.username in table.get_seated_info():
-                    seated = True
-                    t = table
-                    break
-
-            # if not seated, return error
-            if not seated:
-                return "not seated"
-
-            # if seated, forward the message to the recipient
-            peer_2 = t.get_peer(peer_1.username)
-
-            send = to(peer_2, by_username)
-
-            # turn the serialized message back into data so that the peer can consume it and transmit the bytes.
-            data = serialize(message)
-
-            send(data)
-
-            return None
-
         StdoutLogger.user_action(message.sender, ACTIONS[message.action])
 
         # read the action
