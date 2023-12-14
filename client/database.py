@@ -2,7 +2,8 @@
 
 
 # ChatMessage is a tuple, a username, and a list of messages from that username.
-from shared.encryption import Key, new_key_from_utf
+from shared.crypto import base_64_to_public_key
+from shared.encryption import Key, RSAKey
 from shared.message import DataMessage
 
 
@@ -17,7 +18,7 @@ class Database:
         self.chat_logs: ChatLogs = {}
 
         # Keys of senders/contacts. Used to encrypt outgoing messages.
-        self.sender_keys: dict[str, Key] = {}
+        self.sender_keys: dict[str, RSAKey] = {}
 
     def store_message(self, message: DataMessage) -> None:
         """
@@ -40,19 +41,18 @@ class Database:
 
     def store_key(self, message: DataMessage) -> None:
         """
-        Stores a public key from a sender given a utf-8 string
+        Stores a public key from a sender given a utf-8 string. The public key is expected to be encoded in base64.
         """
 
         # DIFFERENCE! message.params stores the sender name of the key, the other peer.
         name: str = message.params
-
         pub_key: str = message.pubkey
 
         # check if the key is already in the database
         if name not in self.sender_keys.keys():
             # if its not, make a new key
-            key = new_key_from_utf(pub_key)
-            self.sender_keys[name] = key
+            key = base_64_to_public_key(pub_key)
+            self.sender_keys[name] = RSAKey(key)
 
         return None
 

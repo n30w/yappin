@@ -5,7 +5,7 @@ Physical application that is the client.
 import select
 import sys
 from client.database import Database
-from shared.encryption import Key, Locksmith, deserialize_key
+from shared.encryption import AESKey, Locksmith, RSAKey
 from shared.protobuf import Action, deserialize, serialize
 from shared.message import DataMessage, DataMessageChatMessage
 from shared.net import *
@@ -38,23 +38,34 @@ def sanitize_input(input: str) -> tuple[str, str]:
 class Client(Pluggable):
     def __init__(self, config: Config, username: str) -> None:
         super().__init__(config)
-        self.__username = username
-        self.__chat_mode: bool = (
-            False  # checks whether or not this client is connected and chatting
-        )
-
-        # person you're talking to
-        self.__peer: str = ""
-
         self.__database: Database = Database()
 
-        # Encryption
-        self.__public_key: Key
-        self.__private_key: Key
-        self.__public_key, self.__private_key = Locksmith.generate_keys()
+        """
+        Chat session variables
+        """
+        self.__username = username
+        self.__peer: str = ""
+        self.__chat_mode: bool = False
+
+        """
+        Encryption
+        """
+        self.__public_key: RSAKey
+        self.__private_key: RSAKey
+
+        # When chatting, this is the AES session key used for decrypting messages.
+        self.__session_key: AESKey
+
+        (
+            self.__public_key,
+            self.__private_key,
+        ) = Locksmith.generate_rsa_keys()
+
         self.__serialized_pub_key: str = self.__public_key.serialize()
 
-        # message creation callback
+        """
+        Message creation callback
+        """
         self.make_message = from_sender(self.__username, self.__serialized_pub_key)
 
     def _handle_incoming_message(self, message: DataMessage) -> None:
@@ -67,9 +78,14 @@ class Client(Pluggable):
         if sender == "SERVER":
             # If there is no error, then the server's response is a handshake from another peer.
             if res_code == 0:
-                # check if there exists keys already from the sender. Key is now stored and ready to use.
+                # check if their exists keys already from the sender. Key is now stored and ready to use.
                 self.__database.store_key(message)
                 self.__peer = message.params
+
+                # STORE SESSION KEY:
+
+                # GET MESSAGE TEXT — in this case, it is the AES encryption key
+
                 sys_print(f"You are now chatting with @{self.__peer}")
                 self.__chat_mode = True
                 # print(self.__database.get_key(self.__peer).serialize())
@@ -81,19 +97,20 @@ class Client(Pluggable):
                     self.__chat_mode = False
                     self.__peer = None
 
-        # In this case, someone is messaging this client. Display messages on the screen.
+        # In this case, someone is messaging this client, i.e. the sender is not "SERVER". Display messages on the screen.
         else:
             # messages are stored encrypted
             self.__database.store_message(message)
-            # decrypt message
-            messages: str = f"[@{sender}]: "
+
+            messages: str = ""
 
             for m in message.messages:
-                # decrypted = Locksmith.decrypt(self.__private_key, m.body)
-                # messages += decrypted + "\n"
-                messages += m.body
+                # decrypt each message with the sessions' AES key
+                line: str = self.__session_key.decode_and_decrypt(m)
+                # messages += m.body
+                message += line
 
-            print(messages)
+            print(f"[@{sender}]: {messages}")
 
     def _parse_command(self, user_input: str) -> (bool, bool, bytes):
         exited: bool = False
@@ -131,7 +148,16 @@ class Client(Pluggable):
                         message_ready = False
                     elif args != self.__username:
                         sys_print(f"Attempting connection to @{args}")
-                        msg = self.make_message(params=args, text="", action=A_CONNECT)
+                        self.__session_key = Locksmith.generate_session_key()
+
+                        # Encrypt the session key with peer's
+
+                        msg = self.make_message(
+                            params=args,
+                            text=self.__session_key.serialize(),
+                            action=A_CONNECT,
+                        )
+
                         message_ready = True
 
                 case "switch":
@@ -164,10 +190,11 @@ class Client(Pluggable):
         msg = self.make_message(to=None, text="", action=A_LOGIN)
         self.send_data(msg)
 
-        # HANDLE THIS: In the event that the username is invalid, make sure to exit gracefully
-        rec = deserialize(self.get_data())
+        initial_server_message = deserialize(self.get_data())
 
-        sys_print(f"Connected successfully! MOTD: {rec.response.comment}")
+        sys_print(
+            f"Connected successfully! MOTD: {initial_server_message.response.comment}"
+        )
 
         try:
             while not exit:
@@ -197,19 +224,12 @@ class Client(Pluggable):
 
                         if self.__chat_mode:
                             receiver: str = self.__peer
+                            body = self.__session_key.encrypt_and_encode(user_input)
 
-                            # sender_pub_key: Key = self.__database.get_key(receiver)
-
-                            # message_body = Locksmith.encrypt(
-                            #     sender_pub_key, user_input.encode("utf-8")
-                            # )
-
-                            # msg = self.make_message(
-                            #     to=receiver, text=message_body, action=A_MESSAGE
-                            # )
                             msg = self.make_message(
-                                to=receiver, text=user_input, action=A_MESSAGE
+                                to=receiver, text=body, action=A_MESSAGE
                             )
+
                             # message_ready = True
                             self.send_data(msg)
 
@@ -226,6 +246,9 @@ class Client(Pluggable):
 
         except ConnectionResetError:
             sys_print("server died.")
+
+        except ConnectionRefusedError:
+            sys_print("server offline.")
 
         except Exception as e:
             msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
@@ -248,13 +271,18 @@ def sys_print(text: str) -> None:
 # functional builder pattern to send a message
 def from_sender(sender: str, pub_key: str):
     def create(
-        to: str = None, params: str = "", text: str = None, action: int = 9
+        to: str = None,
+        params: str = "",
+        text: str = None,
+        action: int = 9,
+        session_key: str = "",
     ) -> bytes:
         dm = DataMessage(
             sender=sender,
             action=action,
             params=params,
             pubkey=pub_key,
+            sessionkey=session_key,
             messages=DataMessageChatMessage(
                 sender=sender, receiver=to, body=text, date=""
             ),

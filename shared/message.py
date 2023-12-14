@@ -23,12 +23,17 @@ class DataMessageResponseCode(betterproto.Enum):
 
 @dataclass
 class DataMessage(betterproto.Message):
+    """
+    DataMessages are expected to be sanitized when coming toward the server.
+    """
+
     action: "DataMessageClientRequest" = betterproto.enum_field(1)
     response: "DataMessageServerResponse" = betterproto.message_field(2)
     messages: List["DataMessageChatMessage"] = betterproto.message_field(3)
     sender: str = betterproto.string_field(4)
     pubkey: str = betterproto.string_field(5)
     params: str = betterproto.string_field(6)
+    sessionkey: str = betterproto.string_field(7)
 
 
 @dataclass

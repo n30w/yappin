@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rmessage.proto\"\xae\x04\n\x0b\x44\x61taMessage\x12*\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x1a.DataMessage.ClientRequest\x12-\n\x08response\x18\x02 \x01(\x0b\x32\x1b.DataMessage.ServerResponse\x12*\n\x08messages\x18\x03 \x03(\x0b\x32\x18.DataMessage.ChatMessage\x12\x0e\n\x06sender\x18\x04 \x01(\t\x12\x0e\n\x06pubkey\x18\x05 \x01(\t\x12\x0e\n\x06params\x18\x06 \x01(\t\x1aN\n\x0eServerResponse\x12+\n\x08response\x18\x01 \x01(\x0e\x32\x19.DataMessage.ResponseCode\x12\x0f\n\x07\x63omment\x18\x02 \x01(\t\x1aK\n\x0b\x43hatMessage\x12\x0e\n\x06sender\x18\x01 \x01(\t\x12\x10\n\x08receiver\x18\x02 \x01(\t\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t\x12\x0c\n\x04\x64\x61te\x18\x04 \x01(\t\"\x86\x01\n\rClientRequest\x12\x10\n\x0c\x41\x43TION_LOGIN\x10\x00\x12\x11\n\rACTION_LOGOUT\x10\x01\x12\x12\n\x0e\x41\x43TION_CONNECT\x10\x02\x12\x15\n\x11\x41\x43TION_DISCONNECT\x10\x03\x12\x11\n\rACTION_SEARCH\x10\x04\x12\x12\n\x0e\x41\x43TION_MESSAGE\x10\x05\"B\n\x0cResponseCode\x12\x19\n\x15RESPONSE_CODE_SUCCESS\x10\x00\x12\x17\n\x13RESPONSE_CODE_ERROR\x10\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rmessage.proto\"\xc2\x04\n\x0b\x44\x61taMessage\x12*\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x1a.DataMessage.ClientRequest\x12-\n\x08response\x18\x02 \x01(\x0b\x32\x1b.DataMessage.ServerResponse\x12*\n\x08messages\x18\x03 \x03(\x0b\x32\x18.DataMessage.ChatMessage\x12\x0e\n\x06sender\x18\x04 \x01(\t\x12\x0e\n\x06pubkey\x18\x05 \x01(\t\x12\x0e\n\x06params\x18\x06 \x01(\t\x12\x12\n\nsessionkey\x18\x07 \x01(\t\x1aN\n\x0eServerResponse\x12+\n\x08response\x18\x01 \x01(\x0e\x32\x19.DataMessage.ResponseCode\x12\x0f\n\x07\x63omment\x18\x02 \x01(\t\x1aK\n\x0b\x43hatMessage\x12\x0e\n\x06sender\x18\x01 \x01(\t\x12\x10\n\x08receiver\x18\x02 \x01(\t\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t\x12\x0c\n\x04\x64\x61te\x18\x04 \x01(\t\"\x86\x01\n\rClientRequest\x12\x10\n\x0c\x41\x43TION_LOGIN\x10\x00\x12\x11\n\rACTION_LOGOUT\x10\x01\x12\x12\n\x0e\x41\x43TION_CONNECT\x10\x02\x12\x15\n\x11\x41\x43TION_DISCONNECT\x10\x03\x12\x11\n\rACTION_SEARCH\x10\x04\x12\x12\n\x0e\x41\x43TION_MESSAGE\x10\x05\"B\n\x0cResponseCode\x12\x19\n\x15RESPONSE_CODE_SUCCESS\x10\x00\x12\x17\n\x13RESPONSE_CODE_ERROR\x10\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,13 +22,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'message_pb2', _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
   _globals['_DATAMESSAGE']._serialized_start=18
-  _globals['_DATAMESSAGE']._serialized_end=576
-  _globals['_DATAMESSAGE_SERVERRESPONSE']._serialized_start=216
-  _globals['_DATAMESSAGE_SERVERRESPONSE']._serialized_end=294
-  _globals['_DATAMESSAGE_CHATMESSAGE']._serialized_start=296
-  _globals['_DATAMESSAGE_CHATMESSAGE']._serialized_end=371
-  _globals['_DATAMESSAGE_CLIENTREQUEST']._serialized_start=374
-  _globals['_DATAMESSAGE_CLIENTREQUEST']._serialized_end=508
-  _globals['_DATAMESSAGE_RESPONSECODE']._serialized_start=510
-  _globals['_DATAMESSAGE_RESPONSECODE']._serialized_end=576
+  _globals['_DATAMESSAGE']._serialized_end=596
+  _globals['_DATAMESSAGE_SERVERRESPONSE']._serialized_start=236
+  _globals['_DATAMESSAGE_SERVERRESPONSE']._serialized_end=314
+  _globals['_DATAMESSAGE_CHATMESSAGE']._serialized_start=316
+  _globals['_DATAMESSAGE_CHATMESSAGE']._serialized_end=391
+  _globals['_DATAMESSAGE_CLIENTREQUEST']._serialized_start=394
+  _globals['_DATAMESSAGE_CLIENTREQUEST']._serialized_end=528
+  _globals['_DATAMESSAGE_RESPONSECODE']._serialized_start=530
+  _globals['_DATAMESSAGE_RESPONSECODE']._serialized_end=596
 # @@protoc_insertion_point(module_scope)

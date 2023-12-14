@@ -12,6 +12,7 @@
         "pkcs",
         "Protobuf",
         "pubkey",
+        "sessionkey",
         "unpadder",
         "urandom"
     ],

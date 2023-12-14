@@ -4,6 +4,10 @@ ICS Fall 2023 Final. Name is based on "yapping", English word for talking annoyi
 
 Python ```3.12.0``` required for new ```type``` usage. There is no backwards compatibility.
 
+## Running
+
+Use python3 to launch ```start_client.py``` and ```start_server.py```.
+
 ## Ideas
 
 - Verified E2EE with emojis like Telegram calls
@@ -23,14 +27,15 @@ The goals for this project is to ensure that this code is as extensible and as m
 
 ## Required Dependencies
 
-- Protobuf
-- Taskfile
-- Tkinter
-- rsa
+- protobuf
 - cryptography
 - grpcio-tools
 - grpclib
 - betterproto
+
+```pip install protobuf cryptography betterproto```
+
+```grpcio-tools``` and ```grpclib``` may be needed for protobuf.
 
 ## Notes
 
