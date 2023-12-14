@@ -7,6 +7,8 @@
         "Encrypter",
         "encryptor",
         "newkeys",
+        "OAEP",
+        "padder",
         "pkcs",
         "Protobuf",
         "pubkey",

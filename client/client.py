@@ -19,7 +19,7 @@ A_SEARCH = 4
 A_MESSAGE = 5
 
 
-COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch", "leave"]
+COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch", "leave", "who"]
 
 
 def sanitize_input(input: str) -> tuple[str, str]:
@@ -225,7 +225,7 @@ class Client(Pluggable):
             self.send_data(msg)
 
         except ConnectionResetError:
-            print("server died.")
+            sys_print("server died.")
 
         except Exception as e:
             msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
