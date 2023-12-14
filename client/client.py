@@ -82,50 +82,57 @@ class Client(Pluggable):
 
         if sender == "SERVER":
             # If there is no error, then the server's response is a handshake from another peer.
-            if res_code == 0:
-                # check if there exists keys already from the sender. Key is now stored and ready to use.
-                self.__database.store_key(message)
-                self.__peer = res_params
+            match res_code:
+                case 0:
+                    # check if there exists keys already from the sender. Key is now stored and ready to use.
+                    self.__database.store_key(message)
+                    self.__peer = res_params
 
-                # STORE SESSION KEY:
+                    # STORE SESSION KEY:
 
-                sys_print(f"You are now chatting with @{self.__peer}")
-                self.__chat_mode = True
-                # print(self.__database.get_key(self.__peer).serialize())
+                    sys_print(f"You are now chatting with @{self.__peer}")
+                    self.__chat_mode = True
+                    # print(self.__database.get_key(self.__peer).serialize())
 
-            # Error has occurred
-            elif res_code == 1:
-                sys_print(f"Uh oh! {res_comment}")
-                if res_params == "DISCONNECT":
+                # Error occurred
+                case 1:
+                    sys_print(f"Uh oh! {res_comment}")
+                    if res_params == "DISCONNECT":
+                        self.__chat_mode = False
+                        self.__peer = None
+
+                # Other client disconnected
+                case 3:
                     self.__chat_mode = False
                     self.__peer = None
+                    sys_print(res_comment)
 
-            # server response when requesting a user's public key
-            elif res_code == 5:
-                self.__database.store_key(message)
+                # server response when requesting a user's public key. This makes the client send their encrypted session key over.
+                case 5:
+                    self.__database.store_key(message)
 
-                sys_print(f"Received {self.__peer}'s public key!")
+                    sys_print(f"Received {self.__peer}'s public key!")
 
-                encrypted_session_key = self.__database.get_key(
-                    res_params
-                ).encrypt_and_encode(self.__session_key.serialize())
+                    encrypted_session_key = self.__database.get_key(
+                        res_params
+                    ).encrypt_and_encode(self.__session_key.serialize())
 
-                # REMEMBER that in this case, res_params or message.params are the chat peer that you are requesting the public keys of.
-                msg = self.make_message(
-                    to=self.__peer,
-                    text="",
-                    action=A_MESSAGE,
-                    session_key=encrypted_session_key,
-                )
+                    # REMEMBER that in this case, res_params or message.params are the chat peer that you are requesting the public keys of.
+                    msg = self.make_message(
+                        to=self.__peer,
+                        text="",
+                        action=A_MESSAGE,
+                        session_key=encrypted_session_key,
+                    )
 
-                # after getting the server's response, lets send the session key to the other peer back.
-                message_ready = True
-                self.__chat_mode = True
+                    # after getting the server's response, lets send the session key to the other peer back.
+                    message_ready = True
+                    self.__chat_mode = True
 
         # In this case, someone is messaging this client, i.e. the sender is not "SERVER". Display messages on the screen.
         else:
             # Any message that isn't blank that comes through is a legit message, else, its a session key.
-            if message.sessionkey is not "":
+            if message.sessionkey != "":
                 sys_print("Received session key!")
                 session_key = self.__private_key.decode_and_decrypt(message.sessionkey)
                 session_key = from_base_64(session_key)
@@ -161,21 +168,29 @@ class Client(Pluggable):
             match command:
                 case "commands":
                     sys_print(f"Available commands:\n\t{COMMAND_BANK}")
+                    message_ready = False
 
                 case "quit":
                     sys_print("Closing yappin'")
                     exited = True
                     msg = self.make_message(
                         to=None,
-                        params="",
-                        text="bye",
                         action=A_LOGOUT,
                     )
                     message_ready = True
 
                 case "chat":
+                    # disconnect the room before chatting again
+                    if self.__chat_mode == True:
+                        if self.__peer == args:
+                            sys_print(f"you're already chatting with @{args}")
+                        else:
+                            sys_print(
+                                "disconnect from current chat first by using /leave"
+                            )
+                        message_ready = False
                     # you cannot chat with yourself
-                    if args == self.__username:
+                    elif args == self.__username:
                         sys_print("you cannot chat with yourself...")
                         message_ready = False
                     elif args != self.__username:
@@ -224,17 +239,22 @@ class Client(Pluggable):
     def run(self):
         exit = False
 
-        print("\n~================================================~\n")
-        print(f" v(0 o 0)v yappin' as @{self.__username}\n")
-        # print(f"RSA Public Key: \n{self.__serialized_pub_key}")
-        print("~================================================~\n")
-
         # Initial login handshake
-        self.socket.connect()
+        try:
+            self.socket.connect()
+        except ConnectionRefusedError:
+            sys_print("Server offline — try again later")
+            return
+
         msg = self.make_message(to=None, text="", action=A_LOGIN)
         self.send_data(msg)
 
-        initial_server_message = deserialize(self.get_data())
+        data: bytes = self.get_data()
+        initial_server_message = deserialize(data)
+
+        print(
+            f"\n~================================================~\n v(0 o 0)v yappin' as @{self.__username}\n~================================================~\n"
+        )
 
         sys_print(
             f"Connected successfully! MOTD: {initial_server_message.response.comment}"
@@ -268,18 +288,23 @@ class Client(Pluggable):
                     """
                     if source is sys.stdin:
                         user_input = input()
-                        exit, message_ready, message = self._parse_command(user_input)
 
-                        if self.__chat_mode:
-                            receiver: str = self.__peer
-                            body = self.__session_key.encrypt_and_encode(user_input)
-
-                            msg = self.make_message(
-                                to=receiver, text=body, action=A_MESSAGE
+                        # check if user input has a command rather than message:
+                        if user_input[0] == "/":
+                            exit, message_ready, message = self._parse_command(
+                                user_input
                             )
+                        else:
+                            if self.__chat_mode:
+                                receiver: str = self.__peer
+                                body = self.__session_key.encrypt_and_encode(user_input)
 
-                            # message_ready = True
-                            self.send_data(msg)
+                                msg = self.make_message(
+                                    to=receiver, text=body, action=A_MESSAGE
+                                )
+
+                                # message_ready = True
+                                self.send_data(msg)
 
                 if message_ready:
                     self.send_data(message)
@@ -289,7 +314,7 @@ class Client(Pluggable):
 
             # send quit code to server!
             # msg = make_message("", "", A_LOGOUT)
-            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            msg = self.make_message(to=None, action=A_LOGOUT)
             self.send_data(msg)
 
         except ConnectionResetError:
@@ -299,14 +324,14 @@ class Client(Pluggable):
             sys_print("server offline.")
 
         except Exception as e:
-            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            msg = self.make_message(to=None, action=A_LOGOUT)
             self.send_data(msg)
 
             print(f"Error: {e}")
             traceback.print_exc()
 
         finally:
-            msg = self.make_message(to=None, params="", text="bye", action=A_LOGOUT)
+            msg = self.make_message(to=None, action=A_LOGOUT)
             self.send_data(msg)
 
             self.socket.close()

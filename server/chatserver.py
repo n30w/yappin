@@ -176,7 +176,7 @@ class ChatServer(Server):
             peer_2.set_state(State.CONNECTED)
 
             response = build_server_response(
-                res_code=1, comment=f"{message.sender} has left", params="DISCONNECT"
+                res_code=3, comment=f"{message.sender} has left the chat"
             )
 
             peer_2.send_data(response)
