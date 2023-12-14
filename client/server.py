@@ -1,1 +1,0 @@
-# Client's server model.

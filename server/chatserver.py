@@ -98,7 +98,11 @@ class ChatServer(Server):
         # initializes peer in internal databases
         self._initialize_peer(new_peer)
 
-        response = build_server_response(res_code=0, comment="have a nice stay")
+        response = build_server_response(
+            res_code=0,
+            comment="have a nice stay",
+            params=f"Online users: {self.connected_peers()}",
+        )
         new_peer.send_data(response)
 
         StdoutLogger.user_action(new_peer.username, ACTIONS[message.action])

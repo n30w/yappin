@@ -2,12 +2,13 @@
 Physical application that is the client.
 """
 
+import queue
 import select
 import sys
 from client.database import Database
 from shared.crypto import from_base_64
 from shared.encryption import AESKey, Locksmith, RSAKey
-from shared.protobuf import Action, deserialize, serialize
+from shared.protobuf import deserialize
 from shared.message import DataMessage, DataMessageChatMessage
 from shared.net import *
 from shared import *
@@ -37,14 +38,24 @@ def sanitize_input(input: str) -> tuple[str, str]:
 
 
 class Client(Pluggable):
-    def __init__(self, config: Config, username: str) -> None:
+    def __init__(
+        self,
+        config: Config,
+        gui_to_client_queue: queue.Queue,
+        client_to_gui_queue: queue.Queue,
+        username: str = "default_user",
+    ) -> None:
         super().__init__(config)
         self.__database: Database = Database()
+
+        # Used for handling message operations from and to a GUI object and vice versa
+        self.__gui_to_client_queue: queue.Queue = gui_to_client_queue
+        self.__client_to_gui_queue: queue.Queue = client_to_gui_queue
 
         """
         Chat session variables
         """
-        self.__username = username
+        self.__username: str = username
         self.__peer: str = ""
         self.__chat_mode: bool = False
 
@@ -69,9 +80,13 @@ class Client(Pluggable):
         """
         self.make_message = from_sender(self.__username, self.__serialized_pub_key)
 
-    def _handle_incoming_message(self, message: DataMessage) -> tuple[bool, bytes]:
+    def set_username(self, username: str) -> None:
+        self.__username = username
+
+    def _handle_incoming_message(self, message: DataMessage) -> tuple[bool, bytes, str]:
         # server sent messages will always have params coming back AND have response code AND have sender that is "SERVER"
 
+        queue_message: str = None
         message_ready = False
         msg: bytes = None
 
@@ -90,13 +105,13 @@ class Client(Pluggable):
 
                     # STORE SESSION KEY:
 
-                    sys_print(f"You are now chatting with @{self.__peer}")
+                    queue_message = f"You are now chatting with @{self.__peer}"
                     self.__chat_mode = True
                     # print(self.__database.get_key(self.__peer).serialize())
 
                 # Error occurred
                 case 1:
-                    sys_print(f"Uh oh! {res_comment}")
+                    queue_message = f"Uh oh! {res_comment}"
                     if res_params == "DISCONNECT":
                         self.__chat_mode = False
                         self.__peer = None
@@ -105,13 +120,13 @@ class Client(Pluggable):
                 case 3:
                     self.__chat_mode = False
                     self.__peer = None
-                    sys_print(res_comment)
+                    queue_message = res_comment
 
                 # server response when requesting a user's public key. This makes the client send their encrypted session key over.
                 case 5:
                     self.__database.store_key(message)
 
-                    sys_print(f"Received {self.__peer}'s public key!")
+                    queue_message = f"Received {self.__peer}'s public key!"
 
                     encrypted_session_key = self.__database.get_key(
                         res_params
@@ -133,7 +148,7 @@ class Client(Pluggable):
         else:
             # Any message that isn't blank that comes through is a legit message, else, its a session key.
             if message.sessionkey != "":
-                sys_print("Received session key!")
+                queue_message = f"Received session key!"
                 session_key = self.__private_key.decode_and_decrypt(message.sessionkey)
                 session_key = from_base_64(session_key)
                 self.__session_key: AESKey = AESKey(session_key)
@@ -147,11 +162,12 @@ class Client(Pluggable):
                     # messages += m.body
                     messages += line
 
-                print(f"[@{sender}]: {messages}")
+                queue_message = f"[@{sender}]: {messages}"
 
-        return message_ready, msg
+        return message_ready, msg, queue_message
 
-    def _parse_command(self, user_input: str) -> tuple[bool, bool, bytes]:
+    def _parse_command(self, user_input: str) -> tuple[bool, bool, bytes, str]:
+        queue_message: str = None
         exited: bool = False
         message_ready: bool = False
         msg: bytes = None
@@ -161,17 +177,13 @@ class Client(Pluggable):
 
         if user_input[0] == "/":
             command, args = sanitize_input(user_input)
-            if command not in COMMAND_BANK:
-                sys_print("Invalid command. To see commands, type /commands")
-                return exited, message_ready, msg
-
             match command:
                 case "commands":
-                    sys_print(f"Available commands:\n\t{COMMAND_BANK}")
+                    queue_message = f"Available commands:\n\t{COMMAND_BANK}"
                     message_ready = False
 
                 case "quit":
-                    sys_print("Closing yappin'")
+                    queue_message = "Closing yappin'"
                     exited = True
                     msg = self.make_message(
                         to=None,
@@ -183,18 +195,18 @@ class Client(Pluggable):
                     # disconnect the room before chatting again
                     if self.__chat_mode == True:
                         if self.__peer == args:
-                            sys_print(f"you're already chatting with @{args}")
+                            queue_message = f"you're already chatting with @{args}"
                         else:
-                            sys_print(
+                            queue_message = (
                                 "disconnect from current chat first by using /leave"
                             )
                         message_ready = False
                     # you cannot chat with yourself
                     elif args == self.__username:
-                        sys_print("you cannot chat with yourself...")
+                        queue_message = "you cannot chat with yourself..."
                         message_ready = False
                     elif args != self.__username:
-                        sys_print(f"Attempting connection to @{args}")
+                        queue_message = f"leaving chat with @{self.__peer}"
 
                         self.__session_key = Locksmith.generate_session_key()
                         # first check if we already have the peer's public key
@@ -223,7 +235,7 @@ class Client(Pluggable):
                     pass
 
                 case "leave":
-                    sys_print(f"leaving chat with @{self.__peer}")
+                    queue_message = f"leaving chat with @{self.__peer}"
                     msg = self.make_message(
                         to=None, params=self.__peer, text="", action=A_DISCONNECT
                     )
@@ -232,9 +244,9 @@ class Client(Pluggable):
                     message_ready = True
 
                 case _:
-                    sys_print("invalid command")
+                    queue_message = "Invalid command. To see commands, type /commands"
 
-        return exited, message_ready, msg
+        return exited, message_ready, msg, queue_message
 
     def run(self):
         exit = False
@@ -257,13 +269,24 @@ class Client(Pluggable):
         )
 
         sys_print(
-            f"Connected successfully! MOTD: {initial_server_message.response.comment}"
+            f"Connected successfully! MOTD: {initial_server_message.response.comment}\n {initial_server_message.params}"
         )
 
         try:
             while not exit:
+                queue_message: str = None
                 message: bytes = None
                 message_ready: bool = False
+                gui_message: str = None
+
+                # Check for messages from GUI
+                try:
+                    gui_message = self.__gui_to_client_queue.get_nowait()
+                    # Process the message from GUI
+                    # ...
+                except queue.Empty:
+                    # No messages from GUI
+                    pass
 
                 read, _write, _error = select.select(
                     [self.get_socket(), sys.stdin], [], [], 0
@@ -279,9 +302,11 @@ class Client(Pluggable):
                             incoming_message = deserialize(data)
 
                             # might lead to clashing
-                            message_ready, message = self._handle_incoming_message(
-                                incoming_message
-                            )
+                            (
+                                message_ready,
+                                message,
+                                queue_message,
+                            ) = self._handle_incoming_message(incoming_message)
 
                     """
                     Checks for user input. This is on a different socket.
@@ -291,20 +316,26 @@ class Client(Pluggable):
 
                         # check if user input has a command rather than message:
                         if user_input[0] == "/":
-                            exit, message_ready, message = self._parse_command(
-                                user_input
-                            )
+                            (
+                                exit,
+                                message_ready,
+                                message,
+                                queue_message,
+                            ) = self._parse_command(user_input)
                         else:
                             if self.__chat_mode:
                                 receiver: str = self.__peer
                                 body = self.__session_key.encrypt_and_encode(user_input)
 
-                                msg = self.make_message(
+                                message = self.make_message(
                                     to=receiver, text=body, action=A_MESSAGE
                                 )
 
-                                # message_ready = True
-                                self.send_data(msg)
+                                message_ready = True
+
+                if queue_message is not None:
+                    self.__client_to_gui_queue.put_nowait(queue_message)
+                    sys_print(queue_message)
 
                 if message_ready:
                     self.send_data(message)
@@ -313,7 +344,6 @@ class Client(Pluggable):
             sys_print("Yappin' closed via KeyboardInterrupt")
 
             # send quit code to server!
-            # msg = make_message("", "", A_LOGOUT)
             msg = self.make_message(to=None, action=A_LOGOUT)
             self.send_data(msg)
 

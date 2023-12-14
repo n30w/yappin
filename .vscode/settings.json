@@ -12,6 +12,9 @@
         "pkcs",
         "Protobuf",
         "pubkey",
+        "relheight",
+        "relwidth",
+        "relx",
         "sessionkey",
         "unpadder",
         "urandom"
