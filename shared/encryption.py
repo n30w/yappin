@@ -84,14 +84,18 @@ class RSAKey(Key):
 
     def decode_and_decrypt(self, message: str) -> str:
         b: bytes = from_base_64(message)
-        s: str = decrypt_message_with_rsa(s, self.key)
+        s: str = decrypt_message_with_rsa(b, self.key)
         return s
 
 
 class AESKey(Key):
-    def __init__(self) -> None:
-        key = Locksmith.generate_session_key()
-        super().__init__(key)
+    def __init__(self, key: bytes) -> None:
+        new_key: bytes
+        if key is None:
+            new_key: bytes = generate_aes_key()
+        else:
+            new_key: bytes = key
+        super().__init__(new_key)
 
     def serialize(self) -> str:
         return to_base_64(self.key)

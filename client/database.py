@@ -1,7 +1,9 @@
 """ Data structures to hold chats and such """
 
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 # ChatMessage is a tuple, a username, and a list of messages from that username.
+from typing import Optional
 from shared.crypto import base_64_to_public_key
 from shared.encryption import Key, RSAKey
 from shared.message import DataMessage
@@ -51,10 +53,12 @@ class Database:
         # check if the key is already in the database
         if name not in self.sender_keys.keys():
             # if its not, make a new key
-            key = base_64_to_public_key(pub_key)
+            key: rsa.RSAPublicKey = base_64_to_public_key(pub_key)
             self.sender_keys[name] = RSAKey(key)
 
         return None
 
-    def get_key(self, username: str) -> Key:
+    def get_key(self, username: str) -> Optional[Key]:
+        if username not in tuple(self.sender_keys.keys()):
+            return None
         return self.sender_keys[username]

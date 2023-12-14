@@ -5,6 +5,7 @@ Physical application that is the client.
 import select
 import sys
 from client.database import Database
+from shared.crypto import from_base_64
 from shared.encryption import AESKey, Locksmith, RSAKey
 from shared.protobuf import Action, deserialize, serialize
 from shared.message import DataMessage, DataMessageChatMessage
@@ -68,23 +69,25 @@ class Client(Pluggable):
         """
         self.make_message = from_sender(self.__username, self.__serialized_pub_key)
 
-    def _handle_incoming_message(self, message: DataMessage) -> None:
+    def _handle_incoming_message(self, message: DataMessage) -> tuple[bool, bytes]:
         # server sent messages will always have params coming back AND have response code AND have sender that is "SERVER"
+
+        message_ready = False
+        msg: bytes = None
 
         sender = message.sender
         res_code = message.response.response
         res_comment = message.response.comment
+        res_params = message.params
 
         if sender == "SERVER":
             # If there is no error, then the server's response is a handshake from another peer.
             if res_code == 0:
-                # check if their exists keys already from the sender. Key is now stored and ready to use.
+                # check if there exists keys already from the sender. Key is now stored and ready to use.
                 self.__database.store_key(message)
-                self.__peer = message.params
+                self.__peer = res_params
 
                 # STORE SESSION KEY:
-
-                # GET MESSAGE TEXT — in this case, it is the AES encryption key
 
                 sys_print(f"You are now chatting with @{self.__peer}")
                 self.__chat_mode = True
@@ -93,26 +96,55 @@ class Client(Pluggable):
             # Error has occurred
             elif res_code == 1:
                 sys_print(f"Uh oh! {res_comment}")
-                if message.params == "DISCONNECT":
+                if res_params == "DISCONNECT":
                     self.__chat_mode = False
                     self.__peer = None
 
+            # server response when requesting a user's public key
+            elif res_code == 5:
+                self.__database.store_key(message)
+
+                sys_print(f"Received {self.__peer}'s public key!")
+
+                encrypted_session_key = self.__database.get_key(
+                    res_params
+                ).encrypt_and_encode(self.__session_key.serialize())
+
+                # REMEMBER that in this case, res_params or message.params are the chat peer that you are requesting the public keys of.
+                msg = self.make_message(
+                    to=self.__peer,
+                    text="",
+                    action=A_MESSAGE,
+                    session_key=encrypted_session_key,
+                )
+
+                # after getting the server's response, lets send the session key to the other peer back.
+                message_ready = True
+                self.__chat_mode = True
+
         # In this case, someone is messaging this client, i.e. the sender is not "SERVER". Display messages on the screen.
         else:
-            # messages are stored encrypted
-            self.__database.store_message(message)
+            # Any message that isn't blank that comes through is a legit message, else, its a session key.
+            if message.sessionkey is not "":
+                sys_print("Received session key!")
+                session_key = self.__private_key.decode_and_decrypt(message.sessionkey)
+                session_key = from_base_64(session_key)
+                self.__session_key: AESKey = AESKey(session_key)
+            else:
+                # messages are stored encrypted
+                messages: str = ""
 
-            messages: str = ""
+                for m in message.messages:
+                    # decrypt each message with the sessions' AES key
+                    line: str = self.__session_key.decode_and_decrypt(m.body)
+                    # messages += m.body
+                    messages += line
 
-            for m in message.messages:
-                # decrypt each message with the sessions' AES key
-                line: str = self.__session_key.decode_and_decrypt(m)
-                # messages += m.body
-                message += line
+                print(f"[@{sender}]: {messages}")
 
-            print(f"[@{sender}]: {messages}")
+        return message_ready, msg
 
-    def _parse_command(self, user_input: str) -> (bool, bool, bytes):
+    def _parse_command(self, user_input: str) -> tuple[bool, bool, bytes]:
         exited: bool = False
         message_ready: bool = False
         msg: bytes = None
@@ -148,15 +180,27 @@ class Client(Pluggable):
                         message_ready = False
                     elif args != self.__username:
                         sys_print(f"Attempting connection to @{args}")
+
                         self.__session_key = Locksmith.generate_session_key()
+                        # first check if we already have the peer's public key
+                        peer_key = self.__database.get_key(args)
 
-                        # Encrypt the session key with peer's
+                        if peer_key is not None:
+                            # then, encrypt the session key with peer's RSA public key
+                            encrypted_session_key: str = peer_key.encrypt_and_encode(
+                                self.__session_key.serialize()
+                            )
 
-                        msg = self.make_message(
-                            params=args,
-                            text=self.__session_key.serialize(),
-                            action=A_CONNECT,
-                        )
+                            msg = self.make_message(
+                                params=args,
+                                session_key=encrypted_session_key,
+                                action=A_CONNECT,
+                            )
+
+                        # if we don't have the public key, we're gonna have to request it.
+                        else:
+                            self.__peer = args
+                            msg = self.make_message(params=args, action=A_CONNECT)
 
                         message_ready = True
 
@@ -182,7 +226,7 @@ class Client(Pluggable):
 
         print("\n~================================================~\n")
         print(f" v(0 o 0)v yappin' as @{self.__username}\n")
-        print(f"RSA Public Key: \n{self.__serialized_pub_key}")
+        # print(f"RSA Public Key: \n{self.__serialized_pub_key}")
         print("~================================================~\n")
 
         # Initial login handshake
@@ -198,7 +242,7 @@ class Client(Pluggable):
 
         try:
             while not exit:
-                message: bytes
+                message: bytes = None
                 message_ready: bool = False
 
                 read, _write, _error = select.select(
@@ -213,7 +257,11 @@ class Client(Pluggable):
                         data = self.get_data()
                         if data is not None:
                             incoming_message = deserialize(data)
-                            self._handle_incoming_message(incoming_message)
+
+                            # might lead to clashing
+                            message_ready, message = self._handle_incoming_message(
+                                incoming_message
+                            )
 
                     """
                     Checks for user input. This is on a different socket.

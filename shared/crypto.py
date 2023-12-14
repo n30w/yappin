@@ -5,9 +5,9 @@ RSA ENCRYPTION FUNCTIONS
 """
 
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import padding as pd
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import padding, hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from os import urandom
 import base64
@@ -25,8 +25,8 @@ def generate_rsa_keys() -> tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
 def encrypt_message_with_rsa(message: str, public_key: rsa.RSAPublicKey) -> bytes:
     encrypted_message = public_key.encrypt(
         message.encode(),
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        pd.OAEP(
+            mgf=pd.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None,
         ),
@@ -39,8 +39,8 @@ def decrypt_message_with_rsa(
 ) -> str:
     original_message = private_key.decrypt(
         encrypted_message,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        pd.OAEP(
+            mgf=pd.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
             label=None,
         ),
@@ -133,7 +133,7 @@ def from_base_64(text: str) -> bytes:
     """
     Translates a base64 encoded UTF-8 string into bytes.
     """
-    return base64.b64decode(text.encode("utf-8"))
+    return base64.b64decode(text)
 
 
 def encrypt_and_encode_aes(message: str, key: bytes) -> str:

@@ -226,16 +226,12 @@ class ChatServer(Server):
                 First, check if the "other user" is yourself. You cannot chat with yourself.
                 """
                 if peer_id == sender:
-                    StdoutLogger.log(f"@{sender} attempted connection to self")
                     return f"you cannot chat with yourself"
 
                 """
                 Second, check if the other user is even online
                 """
                 if peer_id not in self.connected_peers():
-                    StdoutLogger.log(
-                        f"@{sender} attempted connection to non-existent user @{peer_id}"
-                    )
                     return f"@{peer_id} is not online or does not exist"
                 else:
                     # the message that peer sends to connect has params field containing the username of the connectee.
@@ -257,6 +253,15 @@ class ChatServer(Server):
                 table.seat(peer_1)
                 table.seat(peer_2)
 
+                peer_2_key = build_server_response(
+                    res_code=5,
+                    pub_key=peer_2.Key,
+                    params=peer_2.username,
+                    comment="peer_2 key",
+                )
+
+                peer_1.send_data(peer_2_key)
+
                 peer_1_key_res = build_server_response(
                     res_code=0,
                     comment="key handshake",
@@ -264,15 +269,7 @@ class ChatServer(Server):
                     params=peer_1.username,
                 )
 
-                peer_2_key_res = build_server_response(
-                    res_code=0,
-                    comment="key handshake",
-                    pub_key=peer_2.Key,
-                    params=peer_2.username,
-                )
-
-                peer_1.socket.transmit(peer_2_key_res)
-                peer_2.socket.transmit(peer_1_key_res)
+                peer_2.send_data(peer_1_key_res)
 
                 peer_1.set_state(State.CHATTING)
                 peer_2.set_state(State.CHATTING)
@@ -317,35 +314,3 @@ class ChatServer(Server):
             case _:  # How did you even get here dawg
                 # send client error response
                 StdoutLogger.log("NO TAMPERING ALLOWED")
-
-
-def create_list(of: list[T], by: certain_attribute) -> list[T]:
-    """
-    ### Args
-        of: T -- target type/object to tabulate. Usually a container.
-        by: function -- function operation to retrieve something from the "what". Like an object attribute.
-    """
-
-    want: list[T] = []
-
-    for obj in of:
-        want.append(by(obj))
-
-    return want
-
-
-# Dispatches a message to send off
-def to(dest: any, by: callable):
-    """
-    Functional approach to routing messages between peers and server internals.
-
-    Args:
-        dest -- destination to send the object to
-        by -- function to retrieve the object that will consume
-    """
-    receiver = by(dest)
-
-    def route(what: any):
-        receiver.consume(what)
-
-    return route
