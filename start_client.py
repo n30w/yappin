@@ -18,10 +18,6 @@ def main():
 
     config = Config(socket_blocking=False)
 
-    # client_thread = threading.Thread(target=client.run)
-    # client_thread.daemon = True
-    # client_thread.start()
-
     def new_client(username) -> Client:
         return Client(config, gui_to_client_queue, client_to_gui_queue, username)
 

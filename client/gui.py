@@ -138,41 +138,13 @@ class GUI:
         client_thread.daemon = True
         client_thread.start()
 
-        # msg = json.dumps({"action": "login", "name": name, "password": password})
-        # self.send(msg)
-        # print(msg)
-
-        # response = json.loads(self.recv())
-
         self.login.destroy()
 
         self.layout(name)
 
         self.textCons.config(state=NORMAL)
-        # self.textCons.insert(END, "hello" +"\n\n")
-        self.textCons.insert(END, menu + "\n\n")
         self.textCons.config(state=DISABLED)
         self.textCons.see(END)
-        # if response["status"] == "success":
-        #     self.login.destroy()
-        #     self.sm.set_state(S_LOGGEDIN)
-        #     self.sm.set_myname(name)
-
-        # while True:
-        #     self.proc()
-
-        # elif response["status"] == "wrong password":
-        #     messagebox.showerror("Error", "Incorrect password")
-        #     return
-
-        # elif response["status"] == "duplicate":
-        #     messagebox.showerror("Error", "duplicate username")
-        #     return
-
-        # # the thread to receive messages
-        # process = threading.Thread(target=self.proc)
-        # process.daemon = True
-        # process.start()
 
     """ +++++++++++++++++++ Register New Users +++++++++++++++++++ """
 
@@ -223,7 +195,7 @@ class GUI:
         self.name = name
         # to show chat window
         self.Window.deiconify()
-        self.Window.title("CHATROOM")
+        self.Window.title("yappin'")
         self.Window.resizable(width=False, height=False)
         self.Window.configure(width=470, height=550, bg="#17202A")
 
@@ -231,7 +203,7 @@ class GUI:
             self.Window,
             bg="#17202A",
             fg="#EAECEE",
-            text=self.name,
+            text=f"yappin' as @{self.name}",
             font="Helvetica 13 bold",
             pady=5,
         )
@@ -290,32 +262,42 @@ class GUI:
         scrollbar.config(command=self.textCons.yview)
         self.textCons.config(state=DISABLED)
 
+        self.Window.after(100, self.update_gui)
+
+    def update_gui(self) -> None:
+        try:
+            message = self.__client_to_gui_queue.get_nowait()
+            # Update your GUI here with the message
+            # Example: Insert message into a Text widget
+            # self.text_widget.insert(END, message + "\n")
+            self.textCons.config(state=NORMAL)
+            self.textCons.insert(END, message + "\n")
+            self.textCons.config(state=DISABLED)
+            self.textCons.see(END)
+        except queue.Empty:
+            pass
+        finally:
+            self.Window.after(100, self.update_gui)  # Schedule the next check
+
     # function to basically start the thread for sending messages
     def sendButton(self, msg):
         self.my_msg = msg
-        # print(msg)
+
+        # Can't send empty messages.
+        if msg == "":
+            return
+
         self.entryMsg.delete(0, END)
         self.textCons.config(state=NORMAL)
-        self.textCons.insert(END, msg + "\n")
+        self.textCons.insert(END, f"[:] {msg}\n")
         self.textCons.config(state=DISABLED)
         self.textCons.see(END)
 
-    def proc(self):
-        # print(self.msg)
-        while True:
-            read, write, error = select.select([self.socket], [], [], 0)
-            peer_msg = []
-            # print(self.msg)
-            if self.socket in read:
-                peer_msg = self.recv()
-            if len(self.my_msg) > 0 or len(peer_msg) > 0:
-                # print(self.system_msg)
-                self.system_msg = self.sm.proc(self.my_msg, peer_msg)
-                self.my_msg = ""
-                self.textCons.config(state=NORMAL)
-                self.textCons.insert(END, self.system_msg + "\n\n")
-                self.textCons.config(state=DISABLED)
-                self.textCons.see(END)
+        # send user message to client backend... AKA Neo's code.
+        self.__gui_to_client_queue.put_nowait(msg)
+
+        if msg == "/quit":
+            self.Window.destroy()
 
     def run(self):
         self.login()

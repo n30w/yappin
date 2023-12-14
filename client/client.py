@@ -46,6 +46,10 @@ class Client(Pluggable):
         username: str = "default_user",
     ) -> None:
         super().__init__(config)
+
+        # checks if we're closing the application
+        self.__exit: bool = False
+
         self.__database: Database = Database()
 
         # Used for handling message operations from and to a GUI object and vice versa
@@ -206,7 +210,7 @@ class Client(Pluggable):
                         queue_message = "you cannot chat with yourself..."
                         message_ready = False
                     elif args != self.__username:
-                        queue_message = f"leaving chat with @{self.__peer}"
+                        queue_message = f"Attempting chat with @{self.__peer}..."
 
                         self.__session_key = Locksmith.generate_session_key()
                         # first check if we already have the peer's public key
@@ -248,9 +252,10 @@ class Client(Pluggable):
 
         return exited, message_ready, msg, queue_message
 
-    def run(self):
-        exit = False
+    def set_exit(self, b: bool) -> None:
+        self.__exit = b
 
+    def run(self):
         # Initial login handshake
         try:
             self.socket.connect()
@@ -268,70 +273,62 @@ class Client(Pluggable):
             f"\n~================================================~\n v(0 o 0)v yappin' as @{self.__username}\n~================================================~\n"
         )
 
-        sys_print(
-            f"Connected successfully! MOTD: {initial_server_message.response.comment}\n {initial_server_message.params}"
-        )
+        x = f"Connected successfully! MOTD: {initial_server_message.response.comment}\n {initial_server_message.params}"
+
+        sys_print(x)
+
+        self.__client_to_gui_queue.put_nowait(x)
 
         try:
-            while not exit:
+            while not self.__exit:
                 queue_message: str = None
                 message: bytes = None
                 message_ready: bool = False
-                gui_message: str = None
+
+                read, _write, _error = select.select([self.get_socket()], [], [], 0)
+
+                """
+                If the source is from the client network socket, handle it.
+                """
+                if self.get_socket() in read:
+                    data = self.get_data()
+                    if data is not None:
+                        incoming_message = deserialize(data)
+
+                        # might lead to clashing
+                        (
+                            message_ready,
+                            message,
+                            queue_message,
+                        ) = self._handle_incoming_message(incoming_message)
 
                 # Check for messages from GUI
                 try:
-                    gui_message = self.__gui_to_client_queue.get_nowait()
+                    user_input = self.__gui_to_client_queue.get_nowait()
                     # Process the message from GUI
                     # ...
+                    # check if user input has a command rather than message:
+                    if user_input[0] == "/":
+                        (
+                            self.__exit,
+                            message_ready,
+                            message,
+                            queue_message,
+                        ) = self._parse_command(user_input)
+                    else:
+                        if self.__chat_mode:
+                            receiver: str = self.__peer
+                            body = self.__session_key.encrypt_and_encode(user_input)
+
+                            message = self.make_message(
+                                to=receiver, text=body, action=A_MESSAGE
+                            )
+
+                            message_ready = True
+
+                # No messages from GUI
                 except queue.Empty:
-                    # No messages from GUI
                     pass
-
-                read, _write, _error = select.select(
-                    [self.get_socket(), sys.stdin], [], [], 0
-                )
-
-                for source in read:
-                    """
-                    If the source is from the client network socket, handle it.
-                    """
-                    if source is self.get_socket():
-                        data = self.get_data()
-                        if data is not None:
-                            incoming_message = deserialize(data)
-
-                            # might lead to clashing
-                            (
-                                message_ready,
-                                message,
-                                queue_message,
-                            ) = self._handle_incoming_message(incoming_message)
-
-                    """
-                    Checks for user input. This is on a different socket.
-                    """
-                    if source is sys.stdin:
-                        user_input = input()
-
-                        # check if user input has a command rather than message:
-                        if user_input[0] == "/":
-                            (
-                                exit,
-                                message_ready,
-                                message,
-                                queue_message,
-                            ) = self._parse_command(user_input)
-                        else:
-                            if self.__chat_mode:
-                                receiver: str = self.__peer
-                                body = self.__session_key.encrypt_and_encode(user_input)
-
-                                message = self.make_message(
-                                    to=receiver, text=body, action=A_MESSAGE
-                                )
-
-                                message_ready = True
 
                 if queue_message is not None:
                     self.__client_to_gui_queue.put_nowait(queue_message)
