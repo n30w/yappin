@@ -19,9 +19,10 @@ A_CONNECT = 2
 A_DISCONNECT = 3
 A_SEARCH = 4
 A_MESSAGE = 5
+A_LIST = 6
 
 
-COMMAND_BANK: list[str] = ["quit", "chat", "commands", "switch", "leave", "who"]
+COMMAND_BANK: list[str] = ["quit", "chat", "commands", "leave", "who"]
 
 
 def sanitize_input(input: str) -> tuple[str, str]:
@@ -148,6 +149,10 @@ class Client(Pluggable):
                     message_ready = True
                     self.__chat_mode = True
 
+                # receives list of mfs back
+                case 6:
+                    queue_message = f"List of online peers: {res_comment}"
+
         # In this case, someone is messaging this client, i.e. the sender is not "SERVER". Display messages on the screen.
         else:
             # Any message that isn't blank that comes through is a legit message, else, its a session key.
@@ -235,9 +240,6 @@ class Client(Pluggable):
 
                         message_ready = True
 
-                case "switch":
-                    pass
-
                 case "leave":
                     queue_message = f"leaving chat with @{self.__peer}"
                     msg = self.make_message(
@@ -247,6 +249,9 @@ class Client(Pluggable):
                     self.__peer = None
                     message_ready = True
 
+                case "who":
+                    msg = self.make_message(to=None, action=A_LIST)
+                    message_ready = True
                 case _:
                     queue_message = "Invalid command. To see commands, type /commands"
 

@@ -18,6 +18,7 @@ class Action(Enum):
     DISCONNECT = DataMessageClientRequest.ACTION_DISCONNECT
     SEARCH = DataMessageClientRequest.ACTION_SEARCH
     MESSAGE = DataMessageClientRequest.ACTION_MESSAGE
+    LIST = DataMessageClientRequest.ACTION_LIST
 
 
 class ResponseCode(Enum):

@@ -3,7 +3,9 @@ Anything GUI related.
 """
 
 import queue
+import random
 import re
+import string
 
 import threading
 import select
@@ -187,6 +189,28 @@ class GUI:
                 title="You have successfully signed up",
                 message="Click 'Log in' to enter the chat room!",
             )
+        elif not (len(name) > 0) or not (len(password) > 0):
+            messagebox.showerror(
+                title="Login failed", message="Please fill in all the fields."
+            )
+
+        elif not (
+            len(password) >= 10
+            and password_special_char.search(password)
+            and password_num.search(password)
+            and password_uppercase.search(password)
+        ):
+            password = "".join(
+                random.choice(
+                    string.ascii_uppercase + string.digits + string.punctuation
+                )
+                for _ in range(10)
+            )
+            messagebox.showerror(
+                title="Login failed",
+                message="Please enter a valid password.'\n\n' Possible Password Suggestion: "
+                + password,
+            )
 
     """ +++++++++++++++++++ Chat Window +++++++++++++++++++"""
 
@@ -207,6 +231,7 @@ class GUI:
             font="Helvetica 13 bold",
             pady=5,
         )
+
         self.labelHead.place(relwidth=1)
 
         self.line = Label(self.Window, width=450, bg="#ABB2B9")

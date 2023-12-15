@@ -10,6 +10,7 @@ message DataMessage {
         ACTION_DISCONNECT = 3;
         ACTION_SEARCH = 4;
         ACTION_MESSAGE = 5; // Indicates that a client wants to message another client
+        ACTION_LIST = 6; // Indicates a client wants to see who else is online
     }
 
     // Responses from the server, either a success or error.

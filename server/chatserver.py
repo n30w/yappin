@@ -315,6 +315,23 @@ class ChatServer(Server):
 
                 return None
 
+            # client wants to see who else is online
+            case 6:
+                sender = message.sender
+
+                peer_1: ChatPeer = self.peer_from_id(sender)
+
+                comment = ""
+
+                for c in self.connected_peers():
+                    comment += f"{c} "
+
+                list_of_online = build_server_response(res_code=6, comment=comment)
+
+                # create a list of who is online:
+                # data = serialize(list_of_online)
+                peer_1.send_data(list_of_online)
+
             case _:  # How did you even get here dawg
                 # send client error response
                 StdoutLogger.log("NO TAMPERING ALLOWED")

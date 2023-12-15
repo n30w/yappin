@@ -18,6 +18,7 @@ class Action(Enum):
     DISCONNECT = Action.DISCONNECT
     SEARCH = Action.SEARCH
     MESSAGE = Action.MESSAGE
+    LIST = Action.LIST
 
 
 ACTIONS: list[Action] = [
@@ -27,6 +28,7 @@ ACTIONS: list[Action] = [
     Action.DISCONNECT,
     Action.SEARCH,
     Action.MESSAGE,
+    Action.LIST,
 ]
 
 

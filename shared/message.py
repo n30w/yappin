@@ -14,6 +14,7 @@ class DataMessageClientRequest(betterproto.Enum):
     ACTION_DISCONNECT = 3
     ACTION_SEARCH = 4
     ACTION_MESSAGE = 5
+    ACTION_LIST = 6
 
 
 class DataMessageResponseCode(betterproto.Enum):
